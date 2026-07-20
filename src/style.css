@@ -83,3 +83,125 @@ html, body {
   color: var(--accent-color, #00d4ff);
   font-weight: 700;
 }
+
+/* ── Project Modal ─────────────────────────────────────────────────────────── */
+.project-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* Entry / exit animation */
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.project-modal[hidden] {
+  /* Override UA [hidden] so our transition still plays on close */
+  display: flex !important;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Blurred dark backdrop */
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 4, 12, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* The card itself */
+.modal-card {
+  position: relative;          /* above the backdrop */
+  z-index: 1;
+  width: min(560px, 92vw);
+  background: rgba(12, 14, 26, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 2.2rem 2.4rem 2rem;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.05),
+    0 24px 64px rgba(0, 0, 0, 0.7),
+    0 0 80px rgba(var(--modal-accent-rgb, 0,212,255), 0.07);
+
+  /* Slide up when visible */
+  transform: translateY(0);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.project-modal[hidden] .modal-card {
+  transform: translateY(20px);
+}
+
+/* Thin coloured line under the title */
+.modal-header {
+  margin-bottom: 1.2rem;
+}
+
+.modal-title {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #f0f2ff;
+  letter-spacing: 0.01em;
+  margin-bottom: 0.55rem;
+}
+
+.modal-accent-bar {
+  height: 3px;
+  width: 3rem;
+  border-radius: 2px;
+  background: var(--modal-accent-color, #00d4ff);
+  box-shadow: 0 0 10px var(--modal-accent-color, #00d4ff);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.modal-description {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: #b8bdd4;
+  margin-bottom: 2rem;
+}
+
+/* Close button */
+.modal-close-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.55em 1.3em;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: #d0d4e8;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.modal-close-btn:hover,
+.modal-close-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  outline: none;
+}
+
+.modal-close-btn .key-badge {
+  display: inline-block;
+  padding: 0.1em 0.4em;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 0.8em;
+  font-weight: 700;
+  font-family: monospace;
+  color: #fff;
+  line-height: 1.5;
+}

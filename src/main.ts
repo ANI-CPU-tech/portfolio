@@ -88,6 +88,49 @@ function hidePrompt() {
   proximityUI.classList.remove('visible');
 }
 
+// ─── Modal refs & state ───────────────────────────────────────────────────────
+const projectModal      = document.getElementById('project-modal')      as HTMLDivElement;
+const modalTitle        = document.getElementById('modal-title')         as HTMLHeadingElement;
+const modalDescription  = document.getElementById('modal-description')   as HTMLParagraphElement;
+const modalAccentBar    = document.getElementById('modal-accent-bar')    as HTMLDivElement;
+const modalCloseBtn     = document.getElementById('modal-close')         as HTMLButtonElement;
+
+let isModalOpen = false;
+
+function openModal(ped: { label: string; description: string; accent: string; accentRgb: string }) {
+  modalTitle.textContent       = ped.label;
+  modalDescription.textContent = ped.description;
+  // Apply accent colour as CSS custom properties on the card
+  projectModal.style.setProperty('--modal-accent-color', ped.accent);
+  projectModal.style.setProperty('--modal-accent-rgb',   ped.accentRgb);
+  modalAccentBar.style.background = ped.accent;
+  modalAccentBar.style.boxShadow  = `0 0 10px ${ped.accent}`;
+  projectModal.removeAttribute('hidden');
+  isModalOpen = true;
+  // Move focus to the close button for keyboard accessibility
+  modalCloseBtn.focus();
+}
+
+function closeModal() {
+  projectModal.setAttribute('hidden', '');
+  isModalOpen = false;
+}
+
+// Close on button click
+modalCloseBtn.addEventListener('click', closeModal);
+
+// Close on Escape key
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && isModalOpen) closeModal();
+});
+
+// Close on backdrop click (click outside the card)
+projectModal.addEventListener('click', (e) => {
+  if (e.target === projectModal || (e.target as HTMLElement).classList.contains('modal-backdrop')) {
+    closeModal();
+  }
+});
+
 // ─── Texture helpers ─────────────────────────────────────────────────────────
 
 function buildPlayerTexture(): THREE.CanvasTexture {
@@ -199,20 +242,41 @@ function addWall(
 
 // ─── Pedestal data ────────────────────────────────────────────────────────────
 interface PedestalDef {
-  label:     string;
-  color:     number;
-  accent:    string;
-  accentRgb: string;   // "r,g,b" for CSS custom property
-  x:         number;
-  z:         number;
+  label:       string;
+  description: string;
+  color:       number;
+  accent:      string;
+  accentRgb:   string;
+  x:           number;
+  z:           number;
 }
 
 // Arranged in a wide arc centred on the origin so the player can approach each one
 const PEDESTALS: PedestalDef[] = [
-  { label: 'Aegis',       color: 0x1a6fff, accent: '#1a6fff', accentRgb: '26,111,255',  x: -10, z: -10 },
-  { label: 'Agent OPSYN', color: 0xff3d6e, accent: '#ff3d6e', accentRgb: '255,61,110',  x:  10, z: -10 },
-  { label: 'FitGyldrah',  color: 0x2ecc71, accent: '#2ecc71', accentRgb: '46,204,113',  x: -10, z:  10 },
-  { label: 'About Me',    color: 0xf5a623, accent: '#f5a623', accentRgb: '245,166,35',  x:  10, z:  10 },
+  {
+    label:       'Aegis',
+    description: 'A cybersecurity project focused on continuous identity verification for zero trust environments.',
+    color: 0x1a6fff, accent: '#1a6fff', accentRgb: '26,111,255',
+    x: -10, z: -10,
+  },
+  {
+    label:       'Agent OPSYN',
+    description: 'An AI-powered developer operations assistant featuring a four-zone architecture, originally built for a hackathon submission.',
+    color: 0xff3d6e, accent: '#ff3d6e', accentRgb: '255,61,110',
+    x:  10, z: -10,
+  },
+  {
+    label:       'FitGyldrah',
+    description: 'A robust backend gym management system built with Python, Django, and PostgreSQL.',
+    color: 0x2ecc71, accent: '#2ecc71', accentRgb: '46,204,113',
+    x: -10, z:  10,
+  },
+  {
+    label:       'About Me',
+    description: 'I am an engineering student with a passion for software development, technical hackathons, and community tech projects. My stack includes Python, Django, Docker, and experimenting with local LLMs via Ollama.',
+    color: 0xf5a623, accent: '#f5a623', accentRgb: '245,166,35',
+    x:  10, z:  10,
+  },
 ];
 
 // Pedestal geometry constants
@@ -364,9 +428,8 @@ async function start() {
   // E key interaction
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() !== 'e') return;
-    if (!nearestPedestal) return;
-    // Placeholder – will be replaced with a real panel in a later task
-    alert(`Opening details for ${nearestPedestal.label}…`);
+    if (!nearestPedestal || isModalOpen) return;
+    openModal(nearestPedestal);
   });
 
   // ── Game Loop ─────────────────────────────────────────────────────────────
@@ -378,12 +441,15 @@ async function start() {
     lastTime    = now;
 
     // Input → desired movement delta for this frame
+    // Movement is blocked while a modal is open
     moveVec.set(0, 0, 0);
-    if (keys.w) moveVec.addScaledVector(CAM_FORWARD,  1);
-    if (keys.s) moveVec.addScaledVector(CAM_FORWARD, -1);
-    if (keys.d) moveVec.addScaledVector(CAM_RIGHT,    1);
-    if (keys.a) moveVec.addScaledVector(CAM_RIGHT,   -1);
-    if (moveVec.lengthSq() > 0) moveVec.normalize();
+    if (!isModalOpen) {
+      if (keys.w) moveVec.addScaledVector(CAM_FORWARD,  1);
+      if (keys.s) moveVec.addScaledVector(CAM_FORWARD, -1);
+      if (keys.d) moveVec.addScaledVector(CAM_RIGHT,    1);
+      if (keys.a) moveVec.addScaledVector(CAM_RIGHT,   -1);
+      if (moveVec.lengthSq() > 0) moveVec.normalize();
+    }
 
     // Desired translation delta this frame (Y = 0, we lock to floor height)
     const desiredMovement = {

@@ -2,14 +2,21 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PLAYER_SPEED   = 5.0;   // units per second
-const CAM_OFFSET     = new THREE.Vector3(10, 10, 10); // isometric offset
-const CAM_LERP       = 0.08;  // camera smoothing (0 = never, 1 = instant)
-const PLAYER_START_Y = 0.8;   // just above the floor surface (floor top = 0)
+const PLAYER_SPEED   = 5.0;
+const CAM_OFFSET     = new THREE.Vector3(10, 10, 10);
+const CAM_LERP       = 0.08;
+const PLAYER_START_Y = 0.8;
+
+// Floor is 40×40 units; half-extent = 20
+const FLOOR_HALF     = 20;
+const FLOOR_THICK    = 0.25; // half-thickness of the floor slab
+
+// Wall thickness (invisible) – fat enough to never tunnel through
+const WALL_THICK     = 1.0;
+const WALL_HEIGHT    = 4.0;  // tall enough to block the capsule
 
 // ─── Renderer ────────────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -17,39 +24,40 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0x0a0a0f);
 
-// ─── Scene ────────────────────────────────────────────────────────────────────
+// ─── Scene ───────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x0a0a0f, 0.04);
+scene.fog = new THREE.FogExp2(0x0a0a0f, 0.025);
 
-// ─── Camera ───────────────────────────────────────────────────────────────────
-const camera = new THREE.PerspectiveCamera(
-  45,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
+// ─── Camera ──────────────────────────────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
 camera.position.copy(CAM_OFFSET);
 camera.lookAt(0, 0, 0);
 
-// ─── Lighting ─────────────────────────────────────────────────────────────────
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+// ─── Lighting ────────────────────────────────────────────────────────────────
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-dirLight.position.set(8, 16, 8);
+// Warm fill from the opposite side for softer shadows on pedestals
+const fillLight = new THREE.DirectionalLight(0xffd0a0, 0.25);
+fillLight.position.set(-10, 8, -10);
+scene.add(fillLight);
+
+// Key light – wide frustum to cover the bigger floor + cast crisp pedestal shadows
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
+dirLight.position.set(15, 28, 15);
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 2048;
-dirLight.shadow.mapSize.height = 2048;
-dirLight.shadow.camera.near = 0.1;
-dirLight.shadow.camera.far = 60;
-dirLight.shadow.camera.left  = -15;
-dirLight.shadow.camera.right =  15;
-dirLight.shadow.camera.top   =  15;
-dirLight.shadow.camera.bottom = -15;
-dirLight.shadow.bias = -0.001;
+dirLight.shadow.mapSize.width  = 4096;
+dirLight.shadow.mapSize.height = 4096;
+dirLight.shadow.camera.near   = 0.5;
+dirLight.shadow.camera.far    = 120;
+dirLight.shadow.camera.left   = -30;
+dirLight.shadow.camera.right  =  30;
+dirLight.shadow.camera.top    =  30;
+dirLight.shadow.camera.bottom = -30;
+dirLight.shadow.bias          = -0.0005;
 scene.add(dirLight);
 
-// ─── Resize handler ───────────────────────────────────────────────────────────
+// ─── Resize ──────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -57,34 +65,19 @@ window.addEventListener('resize', () => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 });
 
-// ─── WASD Input ───────────────────────────────────────────────────────────────
-const keys: Record<string, boolean> = {
-  w: false,
-  a: false,
-  s: false,
-  d: false,
-};
+// ─── WASD Input ──────────────────────────────────────────────────────────────
+const keys: Record<string, boolean> = { w: false, a: false, s: false, d: false };
+window.addEventListener('keydown', (e) => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = true; });
+window.addEventListener('keyup',   (e) => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = false; });
 
-window.addEventListener('keydown', (e) => {
-  const k = e.key.toLowerCase();
-  if (k in keys) keys[k] = true;
-});
+// ─── Texture helpers ─────────────────────────────────────────────────────────
 
-window.addEventListener('keyup', (e) => {
-  const k = e.key.toLowerCase();
-  if (k in keys) keys[k] = false;
-});
-
-// ─── Player Sprite Texture (canvas placeholder) ───────────────────────────────
 function buildPlayerTexture(): THREE.CanvasTexture {
   const size = 128;
   const c = document.createElement('canvas');
-  c.width  = size;
-  c.height = size * 2; // tall character proportions
-
+  c.width = size; c.height = size * 2;
   const ctx = c.getContext('2d')!;
 
-  // Body gradient — cyan/teal HD-2D palette
   const bodyGrad = ctx.createLinearGradient(0, size * 0.3, 0, size * 2);
   bodyGrad.addColorStop(0, '#00e5ff');
   bodyGrad.addColorStop(1, '#006080');
@@ -93,13 +86,7 @@ function buildPlayerTexture(): THREE.CanvasTexture {
   ctx.roundRect(size * 0.2, size * 0.45, size * 0.6, size * 1.3, size * 0.12);
   ctx.fill();
 
-  // Head
-  const headGrad = ctx.createRadialGradient(
-    size * 0.5, size * 0.22,
-    size * 0.04,
-    size * 0.5, size * 0.24,
-    size * 0.22,
-  );
+  const headGrad = ctx.createRadialGradient(size*0.5, size*0.22, size*0.04, size*0.5, size*0.24, size*0.22);
   headGrad.addColorStop(0, '#ffe0b2');
   headGrad.addColorStop(1, '#bf8040');
   ctx.fillStyle = headGrad;
@@ -107,15 +94,13 @@ function buildPlayerTexture(): THREE.CanvasTexture {
   ctx.arc(size * 0.5, size * 0.24, size * 0.22, 0, Math.PI * 2);
   ctx.fill();
 
-  // Eyes
   ctx.fillStyle = '#1a1a2e';
   ctx.beginPath();
   ctx.arc(size * 0.38, size * 0.22, size * 0.05, 0, Math.PI * 2);
   ctx.arc(size * 0.62, size * 0.22, size * 0.05, 0, Math.PI * 2);
   ctx.fill();
 
-  // Rim light (HD-2D characteristic outline glow)
-  ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
+  ctx.strokeStyle = 'rgba(0,229,255,0.6)';
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.roundRect(size * 0.2, size * 0.45, size * 0.6, size * 1.3, size * 0.12);
@@ -124,7 +109,6 @@ function buildPlayerTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-// ─── Shadow blob under player ─────────────────────────────────────────────────
 function buildShadowSprite(): THREE.Sprite {
   const size = 64;
   const c = document.createElement('canvas');
@@ -135,16 +119,90 @@ function buildShadowSprite(): THREE.Sprite {
   g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
+  const mat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.2, 0.4, 1);
+  return sprite;
+}
+
+/** Render a text label into a Sprite that floats above a pedestal */
+function buildLabelSprite(text: string, accentColor: string): THREE.Sprite {
+  const W = 512, H = 128;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d')!;
+
+  // Pill background
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(10,10,20,0.78)';
+  ctx.beginPath();
+  ctx.roundRect(8, 8, W - 16, H - 16, 24);
+  ctx.fill();
+
+  // Accent border
+  ctx.strokeStyle = accentColor;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(8, 8, W - 16, H - 16, 24);
+  ctx.stroke();
+
+  // Text
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 52px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = accentColor;
+  ctx.shadowBlur  = 18;
+  ctx.fillText(text, W / 2, H / 2);
 
   const mat = new THREE.SpriteMaterial({
     map: new THREE.CanvasTexture(c),
     transparent: true,
     depthWrite: false,
+    sizeAttenuation: true,
   });
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(1.2, 0.4, 1);
+  // Scale so the label looks right in world space (wide pill, short height)
+  sprite.scale.set(4, 1, 1);
   return sprite;
 }
+
+// ─── Physics helpers ──────────────────────────────────────────────────────────
+
+/** Add an invisible static wall collider (no mesh) */
+function addWall(
+  world: RAPIER.World,
+  x: number, y: number, z: number,
+  hx: number, hy: number, hz: number
+) {
+  const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z));
+  world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz), body);
+}
+
+// ─── Pedestal data ────────────────────────────────────────────────────────────
+interface PedestalDef {
+  label:  string;
+  color:  number;
+  accent: string;
+  x:      number;
+  z:      number;
+}
+
+// Arranged in a wide arc centred on the origin so the player can approach each one
+const PEDESTALS: PedestalDef[] = [
+  { label: 'Aegis',        color: 0x1a6fff, accent: '#1a6fff', x: -10, z: -10 },
+  { label: 'Agent OPSYN',  color: 0xff3d6e, accent: '#ff3d6e', x:  10, z: -10 },
+  { label: 'FitGyldrah',   color: 0x2ecc71, accent: '#2ecc71', x: -10, z:  10 },
+  { label: 'About Me',     color: 0xf5a623, accent: '#f5a623', x:  10, z:  10 },
+];
+
+// Pedestal geometry constants
+const PED_W = 2.0;   // full width / depth
+const PED_H = 1.2;   // full height
+// half-extents for Rapier
+const PED_HX = PED_W / 2;
+const PED_HY = PED_H / 2;
+const PED_HZ = PED_W / 2;
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 async function start() {
@@ -152,39 +210,102 @@ async function start() {
 
   const world = new RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 });
 
-  // ── Floor ────────────────────────────────────────────────────────────────
-  // Physics: floor top surface sits at y = 0
-  const floorBodyDesc = RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.25, 0);
-  const floorBody     = world.createRigidBody(floorBodyDesc);
-  world.createCollider(RAPIER.ColliderDesc.cuboid(10, 0.25, 10), floorBody);
+  // ── Floor (40×40) ────────────────────────────────────────────────────────
+  const floorBody = world.createRigidBody(
+    RAPIER.RigidBodyDesc.fixed().setTranslation(0, -FLOOR_THICK, 0)
+  );
+  world.createCollider(
+    RAPIER.ColliderDesc.cuboid(FLOOR_HALF, FLOOR_THICK, FLOOR_HALF),
+    floorBody,
+  );
 
-  // Visual
   const floorMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(20, 0.5, 20),
-    new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.8, metalness: 0.1 }),
+    new THREE.BoxGeometry(FLOOR_HALF * 2, FLOOR_THICK * 2, FLOOR_HALF * 2),
+    new THREE.MeshStandardMaterial({ color: 0x263040, roughness: 0.85, metalness: 0.05 }),
   );
   floorMesh.receiveShadow = true;
-  floorMesh.position.set(0, -0.25, 0);
+  floorMesh.position.set(0, -FLOOR_THICK, 0);
   scene.add(floorMesh);
 
-  const grid = new THREE.GridHelper(20, 20, 0x445566, 0x223344);
+  // Grid
+  const grid = new THREE.GridHelper(FLOOR_HALF * 2, 40, 0x344456, 0x1e2c3a);
   grid.position.y = 0.01;
   scene.add(grid);
 
+  // ── Invisible boundary walls ─────────────────────────────────────────────
+  // Each wall is placed just outside the floor edge; centre at mid-height.
+  const wallY  = WALL_HEIGHT / 2;
+  const edge   = FLOOR_HALF + WALL_THICK / 2;
+
+  // North (+Z face)
+  addWall(world,      0, wallY,  edge,  FLOOR_HALF, WALL_HEIGHT, WALL_THICK / 2);
+  // South (-Z face)
+  addWall(world,      0, wallY, -edge,  FLOOR_HALF, WALL_HEIGHT, WALL_THICK / 2);
+  // East  (+X face)
+  addWall(world,   edge, wallY,     0,  WALL_THICK / 2, WALL_HEIGHT, FLOOR_HALF);
+  // West  (-X face)
+  addWall(world,  -edge, wallY,     0,  WALL_THICK / 2, WALL_HEIGHT, FLOOR_HALF);
+
+  // ── Pedestals ─────────────────────────────────────────────────────────────
+  for (const ped of PEDESTALS) {
+    const pedestalY = PED_HY; // centre at half-height so base sits on floor
+
+    // Physics: static cuboid
+    const pedBody = world.createRigidBody(
+      RAPIER.RigidBodyDesc.fixed().setTranslation(ped.x, pedestalY, ped.z)
+    );
+    world.createCollider(RAPIER.ColliderDesc.cuboid(PED_HX, PED_HY, PED_HZ), pedBody);
+
+    // Visual mesh
+    const pedMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(PED_W, PED_H, PED_W),
+      new THREE.MeshStandardMaterial({
+        color:     ped.color,
+        roughness: 0.4,
+        metalness: 0.5,
+        emissive:  ped.color,
+        emissiveIntensity: 0.08,
+      }),
+    );
+    pedMesh.castShadow    = true;
+    pedMesh.receiveShadow = true;
+    pedMesh.position.set(ped.x, pedestalY, ped.z);
+    scene.add(pedMesh);
+
+    // Top cap — slightly lighter face for HD-2D top-lit look
+    const capMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(PED_W + 0.1, 0.12, PED_W + 0.1),
+      new THREE.MeshStandardMaterial({
+        color:     new THREE.Color(ped.color).lerp(new THREE.Color(0xffffff), 0.35),
+        roughness: 0.3,
+        metalness: 0.6,
+      }),
+    );
+    capMesh.castShadow    = true;
+    capMesh.receiveShadow = true;
+    capMesh.position.set(ped.x, PED_H + 0.06, ped.z);
+    scene.add(capMesh);
+
+    // Floating label sprite
+    const label = buildLabelSprite(ped.label, ped.accent);
+    // Float 1.1 units above the top of the pedestal
+    label.position.set(ped.x, PED_H + 1.1, ped.z);
+    scene.add(label);
+
+    // Glow point light for each pedestal – no shadows (perf)
+    const pLight = new THREE.PointLight(ped.color, 1.2, 8);
+    pLight.position.set(ped.x, PED_H + 0.5, ped.z);
+    scene.add(pLight);
+  }
+
   // ── Player Physics ────────────────────────────────────────────────────────
-  // Kinematic position-based body — we drive it ourselves via setNextKinematicTranslation
   const playerBodyDesc = RAPIER.RigidBodyDesc
     .kinematicPositionBased()
     .setTranslation(0, PLAYER_START_Y, 0);
   const playerBody = world.createRigidBody(playerBodyDesc);
+  world.createCollider(RAPIER.ColliderDesc.capsule(0.3, 0.3), playerBody);
 
-  // Capsule collider: radius 0.3, halfHeight 0.3  →  total height ~1.2 units
-  world.createCollider(
-    RAPIER.ColliderDesc.capsule(0.3, 0.3),
-    playerBody,
-  );
-
-  // ── Player Sprite (HD-2D billboard) ──────────────────────────────────────
+  // ── Player Sprite ─────────────────────────────────────────────────────────
   const playerSprite = new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: buildPlayerTexture(),
@@ -193,23 +314,23 @@ async function start() {
       sizeAttenuation: true,
     }),
   );
-  // Scale to match capsule visual proportions (width ~0.8, height ~1.5)
   playerSprite.scale.set(0.9, 1.6, 1);
+  // castShadow is intentionally NOT set — sprites break shadow maps in HD-2D style
   scene.add(playerSprite);
 
-  // Shadow blob
   const shadowSprite = buildShadowSprite();
   scene.add(shadowSprite);
 
-  // ── Movement helpers ─────────────────────────────────────────────────────
-  // The isometric camera sits at offset (10,10,10) → forward is (-1,0,-1) normalised.
-  // We project WASD onto the XZ plane aligned to that view.
-  const CAM_FORWARD = new THREE.Vector3(-1, 0, -1).normalize(); // W
-  const CAM_RIGHT   = new THREE.Vector3( 1, 0, -1).normalize(); // D
+  // ── Movement ──────────────────────────────────────────────────────────────
+  const CAM_FORWARD = new THREE.Vector3(-1, 0, -1).normalize();
+  const CAM_RIGHT   = new THREE.Vector3( 1, 0, -1).normalize();
 
   const moveVec   = new THREE.Vector3();
   const targetPos = new THREE.Vector3();
   const camTarget = new THREE.Vector3();
+
+  // Clamp bound: player capsule radius = 0.3, wall starts at FLOOR_HALF
+  const BOUND = FLOOR_HALF - 0.5;
 
   let lastTime = performance.now();
 
@@ -218,44 +339,37 @@ async function start() {
     requestAnimationFrame(gameLoop);
 
     const now   = performance.now();
-    const delta = Math.min((now - lastTime) / 1000, 0.05); // seconds, capped at 50 ms
+    const delta = Math.min((now - lastTime) / 1000, 0.05);
     lastTime    = now;
 
-    // Build movement direction from keys
+    // Input → move vector
     moveVec.set(0, 0, 0);
     if (keys.w) moveVec.addScaledVector(CAM_FORWARD,  1);
     if (keys.s) moveVec.addScaledVector(CAM_FORWARD, -1);
     if (keys.d) moveVec.addScaledVector(CAM_RIGHT,    1);
     if (keys.a) moveVec.addScaledVector(CAM_RIGHT,   -1);
-
-    // Normalize so diagonal speed == straight speed
     if (moveVec.lengthSq() > 0) moveVec.normalize();
 
-    // Compute new XZ position, keep Y fixed (kinematic on flat floor)
-    const currentPos = playerBody.translation();
+    const cur = playerBody.translation();
     targetPos.set(
-      currentPos.x + moveVec.x * PLAYER_SPEED * delta,
-      PLAYER_START_Y,                                      // lock to floor height
-      currentPos.z + moveVec.z * PLAYER_SPEED * delta,
+      cur.x + moveVec.x * PLAYER_SPEED * delta,
+      PLAYER_START_Y,
+      cur.z + moveVec.z * PLAYER_SPEED * delta,
     );
 
-    // Clamp to floor bounds so the player can't walk off the edge
-    targetPos.x = Math.max(-9.5, Math.min(9.5, targetPos.x));
-    targetPos.z = Math.max(-9.5, Math.min(9.5, targetPos.z));
+    // Boundary clamp (fallback safety alongside invisible walls)
+    targetPos.x = Math.max(-BOUND, Math.min(BOUND, targetPos.x));
+    targetPos.z = Math.max(-BOUND, Math.min(BOUND, targetPos.z));
 
     playerBody.setNextKinematicTranslation(targetPos);
-
-    // Step physics world
     world.step();
 
-    // Sync sprite to body
+    // Sync visuals
     const pos = playerBody.translation();
     playerSprite.position.set(pos.x, pos.y + 0.1, pos.z);
-
-    // Shadow stays flat on the floor
     shadowSprite.position.set(pos.x, 0.02, pos.z);
 
-    // Smooth camera follow — maintain isometric offset from player
+    // Camera follow
     camTarget.set(pos.x + CAM_OFFSET.x, CAM_OFFSET.y, pos.z + CAM_OFFSET.z);
     camera.position.lerp(camTarget, CAM_LERP);
     camera.lookAt(pos.x, 0, pos.z);

@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass }     from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass }     from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PLAYER_SPEED      = 5.0;
@@ -24,6 +28,9 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0x0a0a0f);
+// Tone-mapping required for bloom to look correct
+renderer.toneMapping        = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 
 // ─── Scene ───────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -33,6 +40,21 @@ scene.fog = new THREE.FogExp2(0x0a0a0f, 0.025);
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
 camera.position.copy(CAM_OFFSET);
 camera.lookAt(0, 0, 0);
+
+// ─── Post-processing composer ─────────────────────────────────────────────────
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.6,   // strength
+  0.4,   // radius
+  0.2,   // threshold – only pixels brighter than this bloom
+);
+composer.addPass(bloomPass);
+
+// OutputPass applies tone-mapping & colour-space conversion as the final step
+composer.addPass(new OutputPass());
 
 // ─── Lighting ────────────────────────────────────────────────────────────────
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
@@ -64,6 +86,8 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  composer.setSize(window.innerWidth, window.innerHeight);
+  bloomPass.resolution.set(window.innerWidth, window.innerHeight);
 });
 
 // ─── WASD Input ──────────────────────────────────────────────────────────────
@@ -94,12 +118,14 @@ const modalTitle        = document.getElementById('modal-title')         as HTML
 const modalDescription  = document.getElementById('modal-description')   as HTMLParagraphElement;
 const modalAccentBar    = document.getElementById('modal-accent-bar')    as HTMLDivElement;
 const modalCloseBtn     = document.getElementById('modal-close')         as HTMLButtonElement;
+const modalLinkBtn      = document.getElementById('project-link')        as HTMLAnchorElement;
 
 let isModalOpen = false;
 
-function openModal(ped: { label: string; description: string; accent: string; accentRgb: string }) {
+function openModal(ped: { label: string; description: string; url: string; accent: string; accentRgb: string }) {
   modalTitle.textContent       = ped.label;
   modalDescription.textContent = ped.description;
+  modalLinkBtn.href            = ped.url;
   // Apply accent colour as CSS custom properties on the card
   projectModal.style.setProperty('--modal-accent-color', ped.accent);
   projectModal.style.setProperty('--modal-accent-rgb',   ped.accentRgb);
@@ -244,6 +270,7 @@ function addWall(
 interface PedestalDef {
   label:       string;
   description: string;
+  url:         string;
   color:       number;
   accent:      string;
   accentRgb:   string;
@@ -256,24 +283,28 @@ const PEDESTALS: PedestalDef[] = [
   {
     label:       'Aegis',
     description: 'A cybersecurity project focused on continuous identity verification for zero trust environments.',
+    url:         'https://github.com/ANI-CPU-tech',
     color: 0x1a6fff, accent: '#1a6fff', accentRgb: '26,111,255',
     x: -10, z: -10,
   },
   {
     label:       'Agent OPSYN',
     description: 'An AI-powered developer operations assistant featuring a four-zone architecture, originally built for a hackathon submission.',
+    url:         'https://github.com/ANI-CPU-tech',
     color: 0xff3d6e, accent: '#ff3d6e', accentRgb: '255,61,110',
     x:  10, z: -10,
   },
   {
     label:       'FitGyldrah',
     description: 'A robust backend gym management system built with Python, Django, and PostgreSQL.',
+    url:         'https://github.com/ANI-CPU-tech',
     color: 0x2ecc71, accent: '#2ecc71', accentRgb: '46,204,113',
     x: -10, z:  10,
   },
   {
     label:       'About Me',
     description: 'I am an engineering student with a passion for software development, technical hackathons, and community tech projects. My stack includes Python, Django, Docker, and experimenting with local LLMs via Ollama.',
+    url:         'https://github.com/ANI-CPU-tech',
     color: 0xf5a623, accent: '#f5a623', accentRgb: '245,166,35',
     x:  10, z:  10,
   },
@@ -318,6 +349,28 @@ async function start() {
   const grid = new THREE.GridHelper(FLOOR_HALF * 2, 40, 0x344456, 0x1e2c3a);
   grid.position.y = 0.01;
   scene.add(grid);
+
+  // ── Atmospheric dust particles ────────────────────────────────────────────
+  const PARTICLE_COUNT = 500;
+  const dustPositions  = new Float32Array(PARTICLE_COUNT * 3);
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    dustPositions[i * 3 + 0] = (Math.random() - 0.5) * FLOOR_HALF * 2; // X: ±20
+    dustPositions[i * 3 + 1] =  Math.random() * 10;                     // Y:  0–10
+    dustPositions[i * 3 + 2] = (Math.random() - 0.5) * FLOOR_HALF * 2; // Z: ±20
+  }
+  const dustGeo = new THREE.BufferGeometry();
+  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+
+  const dustMat = new THREE.PointsMaterial({
+    color:       0xffffff,
+    size:        0.1,
+    transparent: true,
+    opacity:     0.45,
+    depthWrite:  false,           // don't occlude geometry behind particles
+    sizeAttenuation: true,
+  });
+  const particles = new THREE.Points(dustGeo, dustMat);
+  scene.add(particles);
 
   // ── Invisible boundary walls ─────────────────────────────────────────────
   // Each wall is placed just outside the floor edge; centre at mid-height.
@@ -504,7 +557,11 @@ async function start() {
     camera.position.lerp(camTarget, CAM_LERP);
     camera.lookAt(pos.x, 0, pos.z);
 
-    renderer.render(scene, camera);
+    // Slowly rotate dust particles for a drifting atmosphere
+    particles.rotation.y += 0.0005;
+
+    // Post-processed render (bloom → output)
+    composer.render();
   }
 
   gameLoop();

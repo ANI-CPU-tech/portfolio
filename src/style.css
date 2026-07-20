@@ -165,7 +165,47 @@ html, body {
   font-size: 1rem;
   line-height: 1.75;
   color: #b8bdd4;
-  margin-bottom: 2rem;
+  margin-bottom: 1.6rem;
+}
+
+/* Close button */
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* "View Project" link styled as a filled accent button */
+.modal-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.55em 1.3em;
+  border-radius: 10px;
+  border: 1px solid var(--modal-accent-color, #00d4ff);
+  background: rgba(var(--modal-accent-rgb, 0,212,255), 0.15);
+  color: var(--modal-accent-color, #00d4ff);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s, color 0.15s;
+}
+
+.modal-link-btn:hover,
+.modal-link-btn:focus-visible {
+  background: rgba(var(--modal-accent-rgb, 0,212,255), 0.28);
+  box-shadow: 0 0 16px rgba(var(--modal-accent-rgb, 0,212,255), 0.35);
+  color: #ffffff;
+  outline: none;
+}
+
+.modal-link-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
 }
 
 /* Close button */

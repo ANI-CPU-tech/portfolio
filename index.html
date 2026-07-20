@@ -8,6 +8,12 @@
   </head>
   <body>
     <canvas id="canvas"></canvas>
+
+    <!-- Proximity prompt – shown when player is near a pedestal -->
+    <div id="proximity-ui" class="proximity-ui" aria-live="polite" aria-atomic="true">
+      <p id="proximity-label" class="proximity-label"></p>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

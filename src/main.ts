@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PLAYER_SPEED   = 5.0;
-const CAM_OFFSET     = new THREE.Vector3(10, 10, 10);
-const CAM_LERP       = 0.08;
-const PLAYER_START_Y = 0.8;
+const PLAYER_SPEED      = 5.0;
+const CAM_OFFSET        = new THREE.Vector3(10, 10, 10);
+const CAM_LERP          = 0.08;
+const PLAYER_START_Y    = 0.8;
+const PROXIMITY_RADIUS  = 3.5;   // world units – trigger distance for UI prompt
 
 // Floor is 40×40 units; half-extent = 20
 const FLOOR_HALF     = 20;
@@ -69,6 +70,23 @@ window.addEventListener('resize', () => {
 const keys: Record<string, boolean> = { w: false, a: false, s: false, d: false };
 window.addEventListener('keydown', (e) => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = true; });
 window.addEventListener('keyup',   (e) => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = false; });
+
+// ─── Proximity UI refs ───────────────────────────────────────────────────────
+const proximityUI    = document.getElementById('proximity-ui')    as HTMLDivElement;
+const proximityLabel = document.getElementById('proximity-label') as HTMLParagraphElement;
+
+/** Show the prompt with the pedestal's accent colour */
+function showPrompt(name: string, accent: string, accentRgb: string) {
+  proximityLabel.style.setProperty('--accent-color', accent);
+  proximityLabel.style.setProperty('--accent-rgb',   accentRgb);
+  proximityLabel.innerHTML =
+    `Press <span class="key-badge">E</span>&nbsp;to view&nbsp;<span class="project-name">${name}</span>`;
+  proximityUI.classList.add('visible');
+}
+
+function hidePrompt() {
+  proximityUI.classList.remove('visible');
+}
 
 // ─── Texture helpers ─────────────────────────────────────────────────────────
 
@@ -181,19 +199,20 @@ function addWall(
 
 // ─── Pedestal data ────────────────────────────────────────────────────────────
 interface PedestalDef {
-  label:  string;
-  color:  number;
-  accent: string;
-  x:      number;
-  z:      number;
+  label:     string;
+  color:     number;
+  accent:    string;
+  accentRgb: string;   // "r,g,b" for CSS custom property
+  x:         number;
+  z:         number;
 }
 
 // Arranged in a wide arc centred on the origin so the player can approach each one
 const PEDESTALS: PedestalDef[] = [
-  { label: 'Aegis',        color: 0x1a6fff, accent: '#1a6fff', x: -10, z: -10 },
-  { label: 'Agent OPSYN',  color: 0xff3d6e, accent: '#ff3d6e', x:  10, z: -10 },
-  { label: 'FitGyldrah',   color: 0x2ecc71, accent: '#2ecc71', x: -10, z:  10 },
-  { label: 'About Me',     color: 0xf5a623, accent: '#f5a623', x:  10, z:  10 },
+  { label: 'Aegis',       color: 0x1a6fff, accent: '#1a6fff', accentRgb: '26,111,255',  x: -10, z: -10 },
+  { label: 'Agent OPSYN', color: 0xff3d6e, accent: '#ff3d6e', accentRgb: '255,61,110',  x:  10, z: -10 },
+  { label: 'FitGyldrah',  color: 0x2ecc71, accent: '#2ecc71', accentRgb: '46,204,113',  x: -10, z:  10 },
+  { label: 'About Me',    color: 0xf5a623, accent: '#f5a623', accentRgb: '245,166,35',  x:  10, z:  10 },
 ];
 
 // Pedestal geometry constants
@@ -338,6 +357,18 @@ async function start() {
 
   let lastTime = performance.now();
 
+  // ── Proximity state ───────────────────────────────────────────────────────
+  // Track which pedestal the player is currently near (null = none)
+  let nearestPedestal: PedestalDef | null = null;
+
+  // E key interaction
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'e') return;
+    if (!nearestPedestal) return;
+    // Placeholder – will be replaced with a real panel in a later task
+    alert(`Opening details for ${nearestPedestal.label}…`);
+  });
+
   // ── Game Loop ─────────────────────────────────────────────────────────────
   function gameLoop() {
     requestAnimationFrame(gameLoop);
@@ -377,6 +408,30 @@ async function start() {
     const pos = playerBody.translation();
     playerSprite.position.set(pos.x, pos.y + 0.1, pos.z);
     shadowSprite.position.set(pos.x, 0.02, pos.z);
+
+    // ── Proximity check ───────────────────────────────────────────────────
+    // Compare XZ distance only (ignore Y) to each pedestal centre
+    let found: PedestalDef | null = null;
+    let closestDist = Infinity;
+
+    for (const ped of PEDESTALS) {
+      const dx   = pos.x - ped.x;
+      const dz   = pos.z - ped.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < PROXIMITY_RADIUS && dist < closestDist) {
+        closestDist = dist;
+        found = ped;
+      }
+    }
+
+    if (found !== nearestPedestal) {
+      nearestPedestal = found;
+      if (found) {
+        showPrompt(found.label, found.accent, found.accentRgb);
+      } else {
+        hidePrompt();
+      }
+    }
 
     // Camera follow
     camTarget.set(pos.x + CAM_OFFSET.x, CAM_OFFSET.y, pos.z + CAM_OFFSET.z);

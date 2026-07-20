@@ -210,6 +210,10 @@ async function start() {
 
   const world = new RAPIER.World({ x: 0.0, y: -9.81, z: 0.0 });
 
+  // Character controller – offset 0.01 keeps the shape slightly away from surfaces
+  // to avoid getting stuck in micro-gaps between colliders.
+  const characterController = world.createCharacterController(0.01);
+
   // ── Floor (40×40) ────────────────────────────────────────────────────────
   const floorBody = world.createRigidBody(
     RAPIER.RigidBodyDesc.fixed().setTranslation(0, -FLOOR_THICK, 0)
@@ -302,8 +306,9 @@ async function start() {
   const playerBodyDesc = RAPIER.RigidBodyDesc
     .kinematicPositionBased()
     .setTranslation(0, PLAYER_START_Y, 0);
-  const playerBody = world.createRigidBody(playerBodyDesc);
-  world.createCollider(RAPIER.ColliderDesc.capsule(0.3, 0.3), playerBody);
+  const playerBody     = world.createRigidBody(playerBodyDesc);
+  // Store collider in its own variable so the character controller can reference it
+  const playerCollider = world.createCollider(RAPIER.ColliderDesc.capsule(0.3, 0.3), playerBody);
 
   // ── Player Sprite ─────────────────────────────────────────────────────────
   const playerSprite = new THREE.Sprite(
@@ -326,11 +331,10 @@ async function start() {
   const CAM_RIGHT   = new THREE.Vector3( 1, 0, -1).normalize();
 
   const moveVec   = new THREE.Vector3();
-  const targetPos = new THREE.Vector3();
   const camTarget = new THREE.Vector3();
 
-  // Clamp bound: player capsule radius = 0.3, wall starts at FLOOR_HALF
-  const BOUND = FLOOR_HALF - 0.5;
+  // BOUND kept for reference; walls + character controller handle actual clamping
+  const BOUND = FLOOR_HALF - 0.5; void BOUND;
 
   let lastTime = performance.now();
 
@@ -342,7 +346,7 @@ async function start() {
     const delta = Math.min((now - lastTime) / 1000, 0.05);
     lastTime    = now;
 
-    // Input → move vector
+    // Input → desired movement delta for this frame
     moveVec.set(0, 0, 0);
     if (keys.w) moveVec.addScaledVector(CAM_FORWARD,  1);
     if (keys.s) moveVec.addScaledVector(CAM_FORWARD, -1);
@@ -350,18 +354,23 @@ async function start() {
     if (keys.a) moveVec.addScaledVector(CAM_RIGHT,   -1);
     if (moveVec.lengthSq() > 0) moveVec.normalize();
 
+    // Desired translation delta this frame (Y = 0, we lock to floor height)
+    const desiredMovement = {
+      x: moveVec.x * PLAYER_SPEED * delta,
+      y: 0,
+      z: moveVec.z * PLAYER_SPEED * delta,
+    };
+
+    // Let Rapier resolve collisions and slide the capsule along surfaces
+    characterController.computeColliderMovement(playerCollider, desiredMovement);
+    const corrected = characterController.computedMovement();
+
     const cur = playerBody.translation();
-    targetPos.set(
-      cur.x + moveVec.x * PLAYER_SPEED * delta,
-      PLAYER_START_Y,
-      cur.z + moveVec.z * PLAYER_SPEED * delta,
-    );
-
-    // Boundary clamp (fallback safety alongside invisible walls)
-    targetPos.x = Math.max(-BOUND, Math.min(BOUND, targetPos.x));
-    targetPos.z = Math.max(-BOUND, Math.min(BOUND, targetPos.z));
-
-    playerBody.setNextKinematicTranslation(targetPos);
+    playerBody.setNextKinematicTranslation({
+      x: cur.x + corrected.x,
+      y: PLAYER_START_Y,        // keep locked to floor — no gravity needed for kinematic
+      z: cur.z + corrected.z,
+    });
     world.step();
 
     // Sync visuals

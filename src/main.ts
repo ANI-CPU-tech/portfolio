@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass }     from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { EffectComposer }  from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass }     from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { OutputPass }      from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GLTFLoader }      from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PLAYER_SPEED      = 5.0;
@@ -254,6 +255,9 @@ function buildLabelSprite(text: string, accentColor: string): THREE.Sprite {
   return sprite;
 }
 
+// ─── GLTF loader (singleton) ──────────────────────────────────────────────────
+const gltfLoader = new GLTFLoader();
+
 // ─── Physics helpers ──────────────────────────────────────────────────────────
 
 /** Add an invisible static wall collider (no mesh) */
@@ -266,11 +270,63 @@ function addWall(
   world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz), body);
 }
 
+/**
+ * Load a GLB asset, enable shadows on all meshes, position + scale it,
+ * then auto-fit a static Rapier cuboid collider from its bounding box.
+ *
+ * The collider centre is placed at the bounding-box centre of the scaled model
+ * so it matches the visual exactly regardless of the GLB's internal pivot.
+ */
+async function loadModelWithPhysics(
+  world:    RAPIER.World,
+  url:      string,
+  position: THREE.Vector3,
+  scale:    number,
+): Promise<THREE.Group> {
+  const gltf  = await gltfLoader.loadAsync(url);
+  const model = gltf.scene;
+
+  model.scale.setScalar(scale);
+  model.position.copy(position);
+
+  // Enable shadows on every mesh in the hierarchy
+  model.traverse((node) => {
+    if ((node as THREE.Mesh).isMesh) {
+      node.castShadow    = true;
+      node.receiveShadow = true;
+    }
+  });
+
+  scene.add(model);
+
+  // ── Bounding-box physics collider ──────────────────────────────────────
+  // Must compute AFTER scale + position are applied so Box3 is in world space.
+  const box    = new THREE.Box3().setFromObject(model);
+  const size   = new THREE.Vector3();
+  const centre = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(centre);
+
+  // Rapier cuboid takes half-extents
+  const hx = size.x / 2;
+  const hy = size.y / 2;
+  const hz = size.z / 2;
+
+  const body = world.createRigidBody(
+    RAPIER.RigidBodyDesc.fixed().setTranslation(centre.x, centre.y, centre.z)
+  );
+  world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz), body);
+
+  return model;
+}
+
 // ─── Pedestal data ────────────────────────────────────────────────────────────
 interface PedestalDef {
   label:       string;
   description: string;
   url:         string;
+  model:       string;   // path served from /public/models/
+  modelScale:  number;   // uniform scale applied to the GLB
   color:       number;
   accent:      string;
   accentRgb:   string;
@@ -278,12 +334,13 @@ interface PedestalDef {
   z:           number;
 }
 
-// Arranged in a wide arc centred on the origin so the player can approach each one
 const PEDESTALS: PedestalDef[] = [
   {
     label:       'Aegis',
     description: 'A cybersecurity project focused on continuous identity verification for zero trust environments.',
     url:         'https://github.com/ANI-CPU-tech',
+    model:       '/models/building-type-a.glb',
+    modelScale:  1.5,
     color: 0x1a6fff, accent: '#1a6fff', accentRgb: '26,111,255',
     x: -10, z: -10,
   },
@@ -291,6 +348,8 @@ const PEDESTALS: PedestalDef[] = [
     label:       'Agent OPSYN',
     description: 'An AI-powered developer operations assistant featuring a four-zone architecture, originally built for a hackathon submission.',
     url:         'https://github.com/ANI-CPU-tech',
+    model:       '/models/building-type-b.glb',
+    modelScale:  1.5,
     color: 0xff3d6e, accent: '#ff3d6e', accentRgb: '255,61,110',
     x:  10, z: -10,
   },
@@ -298,6 +357,8 @@ const PEDESTALS: PedestalDef[] = [
     label:       'FitGyldrah',
     description: 'A robust backend gym management system built with Python, Django, and PostgreSQL.',
     url:         'https://github.com/ANI-CPU-tech',
+    model:       '/models/tree-large.glb',
+    modelScale:  2.0,
     color: 0x2ecc71, accent: '#2ecc71', accentRgb: '46,204,113',
     x: -10, z:  10,
   },
@@ -305,18 +366,12 @@ const PEDESTALS: PedestalDef[] = [
     label:       'About Me',
     description: 'I am an engineering student with a passion for software development, technical hackathons, and community tech projects. My stack includes Python, Django, Docker, and experimenting with local LLMs via Ollama.',
     url:         'https://github.com/ANI-CPU-tech',
+    model:       '/models/planter.glb',
+    modelScale:  2.5,
     color: 0xf5a623, accent: '#f5a623', accentRgb: '245,166,35',
     x:  10, z:  10,
   },
 ];
-
-// Pedestal geometry constants
-const PED_W = 2.0;   // full width / depth
-const PED_H = 1.2;   // full height
-// half-extents for Rapier
-const PED_HX = PED_W / 2;
-const PED_HY = PED_H / 2;
-const PED_HZ = PED_W / 2;
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 async function start() {
@@ -386,57 +441,32 @@ async function start() {
   // West  (-X face)
   addWall(world,  -edge, wallY,     0,  WALL_THICK / 2, WALL_HEIGHT, FLOOR_HALF);
 
-  // ── Pedestals ─────────────────────────────────────────────────────────────
-  for (const ped of PEDESTALS) {
-    const pedestalY = PED_HY; // centre at half-height so base sits on floor
+  // ── Zone models (GLTF) + labels + lights ─────────────────────────────────
+  // Load all four models in parallel; each call also creates the physics collider.
+  await Promise.all(PEDESTALS.map(async (ped) => {
+    const position = new THREE.Vector3(ped.x, 0, ped.z);
 
-    // Physics: static cuboid
-    const pedBody = world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(ped.x, pedestalY, ped.z)
-    );
-    world.createCollider(RAPIER.ColliderDesc.cuboid(PED_HX, PED_HY, PED_HZ), pedBody);
+    // Load model + physics — loadModelWithPhysics measures the real bounding box
+    // after scaling and places a static Rapier cuboid collider to match.
+    const model = await loadModelWithPhysics(world, ped.model, position, ped.modelScale);
 
-    // Visual mesh
-    const pedMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(PED_W, PED_H, PED_W),
-      new THREE.MeshStandardMaterial({
-        color:     ped.color,
-        roughness: 0.4,
-        metalness: 0.5,
-        emissive:  ped.color,
-        emissiveIntensity: 0.08,
-      }),
-    );
-    pedMesh.castShadow    = true;
-    pedMesh.receiveShadow = true;
-    pedMesh.position.set(ped.x, pedestalY, ped.z);
-    scene.add(pedMesh);
+    // Measure the loaded model's bounding box so we can float the label/light
+    // the right distance above its actual top face.
+    const box    = new THREE.Box3().setFromObject(model);
+    const top    = box.max.y;          // world-space Y of the model's top
+    const centre = new THREE.Vector3();
+    box.getCenter(centre);
 
-    // Top cap — slightly lighter face for HD-2D top-lit look
-    const capMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(PED_W + 0.1, 0.12, PED_W + 0.1),
-      new THREE.MeshStandardMaterial({
-        color:     new THREE.Color(ped.color).lerp(new THREE.Color(0xffffff), 0.35),
-        roughness: 0.3,
-        metalness: 0.6,
-      }),
-    );
-    capMesh.castShadow    = true;
-    capMesh.receiveShadow = true;
-    capMesh.position.set(ped.x, PED_H + 0.06, ped.z);
-    scene.add(capMesh);
-
-    // Floating label sprite
+    // Floating label sprite — 1.1 units above the model top
     const label = buildLabelSprite(ped.label, ped.accent);
-    // Float 1.1 units above the top of the pedestal
-    label.position.set(ped.x, PED_H + 1.1, ped.z);
+    label.position.set(centre.x, top + 1.1, centre.z);
     scene.add(label);
 
-    // Glow point light for each pedestal – no shadows (perf)
+    // Glow point light — 0.5 units above the model top, no shadows (perf)
     const pLight = new THREE.PointLight(ped.color, 1.2, 8);
-    pLight.position.set(ped.x, PED_H + 0.5, ped.z);
+    pLight.position.set(centre.x, top + 0.5, centre.z);
     scene.add(pLight);
-  }
+  }));
 
   // ── Player Physics ────────────────────────────────────────────────────────
   const playerBodyDesc = RAPIER.RigidBodyDesc

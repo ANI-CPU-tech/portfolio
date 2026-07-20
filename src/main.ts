@@ -257,6 +257,12 @@ function buildLabelSprite(text: string, accentColor: string): THREE.Sprite {
 
 // ─── GLTF loader (singleton) ──────────────────────────────────────────────────
 const gltfLoader = new GLTFLoader();
+const textureLoader = new THREE.TextureLoader();
+
+// Shared texture palette for all GLTF models
+const paletteTexture = textureLoader.load('/models/colormap.png');
+paletteTexture.flipY      = false;                // GLTF models use lower-left origin
+paletteTexture.colorSpace = THREE.SRGBColorSpace; // proper color interpretation
 
 // ─── Physics helpers ──────────────────────────────────────────────────────────
 
@@ -289,11 +295,24 @@ async function loadModelWithPhysics(
   model.scale.setScalar(scale);
   model.position.copy(position);
 
-  // Enable shadows on every mesh in the hierarchy
+  // Enable shadows on every mesh in the hierarchy + apply shared texture
   model.traverse((node) => {
     if ((node as THREE.Mesh).isMesh) {
-      node.castShadow    = true;
-      node.receiveShadow = true;
+      const mesh = node as THREE.Mesh;
+      mesh.castShadow    = true;
+      mesh.receiveShadow = true;
+
+      // Apply the shared colormap palette texture
+      if (mesh.material) {
+        // Handle both single materials and material arrays
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((mat) => {
+          if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
+            mat.map = paletteTexture;
+            mat.needsUpdate = true;
+          }
+        });
+      }
     }
   });
 

@@ -277,23 +277,25 @@ function addWall(
 }
 
 /**
- * Load a GLB asset, enable shadows on all meshes, position + scale it,
+ * Load a GLB asset, enable shadows on all meshes, position + scale + rotate it,
  * then auto-fit a static Rapier cuboid collider from its bounding box.
  *
  * The collider centre is placed at the bounding-box centre of the scaled model
  * so it matches the visual exactly regardless of the GLB's internal pivot.
  */
 async function loadModelWithPhysics(
-  world:    RAPIER.World,
-  url:      string,
-  position: THREE.Vector3,
-  scale:    number,
+  world:     RAPIER.World,
+  url:       string,
+  position:  THREE.Vector3,
+  scale:     number,
+  rotationY: number = 0,
 ): Promise<THREE.Group> {
   const gltf  = await gltfLoader.loadAsync(url);
   const model = gltf.scene;
 
   model.scale.setScalar(scale);
   model.position.copy(position);
+  model.rotation.y = rotationY;  // Apply rotation BEFORE bounding box calculation
 
   // Enable shadows on every mesh in the hierarchy + apply shared texture
   model.traverse((node) => {
@@ -319,7 +321,7 @@ async function loadModelWithPhysics(
   scene.add(model);
 
   // ── Bounding-box physics collider ──────────────────────────────────────
-  // Must compute AFTER scale + position are applied so Box3 is in world space.
+  // Must compute AFTER scale + position + rotation so Box3 is in world space.
   const box    = new THREE.Box3().setFromObject(model);
   const size   = new THREE.Vector3();
   const centre = new THREE.Vector3();
@@ -339,56 +341,113 @@ async function loadModelWithPhysics(
   return model;
 }
 
-// ─── Pedestal data ────────────────────────────────────────────────────────────
+/**
+ * Load the custom Blender-authored city level with trimesh physics.
+ * Returns the loaded scene and creates a single static trimesh collider.
+ */
+async function loadBlenderLevel(world: RAPIER.World): Promise<THREE.Group> {
+  const gltf = await gltfLoader.loadAsync('/models/custom-city.glb');
+  const levelScene = gltf.scene;
+
+  // Apply shared texture palette and enable shadows on all meshes
+  levelScene.traverse((node) => {
+    if ((node as THREE.Mesh).isMesh) {
+      const mesh = node as THREE.Mesh;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      // Apply colormap texture
+      if (mesh.material) {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((mat) => {
+          if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
+            mat.map = paletteTexture;
+            mat.needsUpdate = true;
+          }
+        });
+      }
+    }
+  });
+
+  scene.add(levelScene);
+
+  // ── Extract geometry for Rapier trimesh collider ──────────────────────────
+  // Collect all vertices and indices from every mesh in the level
+  const allVertices: number[] = [];
+  const allIndices: number[] = [];
+  let vertexOffset = 0;
+
+  levelScene.traverse((node) => {
+    if ((node as THREE.Mesh).isMesh) {
+      const mesh = node as THREE.Mesh;
+      const geometry = mesh.geometry;
+
+      // Apply world matrix to get vertices in world space
+      mesh.updateWorldMatrix(true, false);
+      const positionAttr = geometry.getAttribute('position');
+
+      if (positionAttr) {
+        const vertex = new THREE.Vector3();
+        for (let i = 0; i < positionAttr.count; i++) {
+          vertex.fromBufferAttribute(positionAttr, i);
+          vertex.applyMatrix4(mesh.matrixWorld);
+          allVertices.push(vertex.x, vertex.y, vertex.z);
+        }
+
+        // Collect indices
+        const index = geometry.index;
+        if (index) {
+          for (let i = 0; i < index.count; i++) {
+            allIndices.push(index.array[i] + vertexOffset);
+          }
+        } else {
+          // Non-indexed geometry: create sequential indices
+          for (let i = 0; i < positionAttr.count; i++) {
+            allIndices.push(vertexOffset + i);
+          }
+        }
+
+        vertexOffset += positionAttr.count;
+      }
+    }
+  });
+
+  // Create single static trimesh collider for entire level
+  if (allVertices.length > 0 && allIndices.length > 0) {
+    const vertices = new Float32Array(allVertices);
+    const indices = new Uint32Array(allIndices);
+
+    const trimeshCollider = RAPIER.ColliderDesc.trimesh(vertices, indices);
+    const levelBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    world.createCollider(trimeshCollider, levelBody);
+  }
+
+  return levelScene;
+}
+
+// ─── Interactive zone data ───────────────────────────────────────────────────
 interface PedestalDef {
   label:       string;
   description: string;
   url:         string;
-  model:       string;   // path served from /public/models/
-  modelScale:  number;   // uniform scale applied to the GLB
+  x:           number;
+  z:           number;
+  y:           number;   // height for floating label
   color:       number;
   accent:      string;
   accentRgb:   string;
-  x:           number;
-  z:           number;
 }
 
+// Single interactive zone positioned in the Blender level's courtyard
 const PEDESTALS: PedestalDef[] = [
-  {
-    label:       'Aegis',
-    description: 'A cybersecurity project focused on continuous identity verification for zero trust environments.',
-    url:         'https://github.com/ANI-CPU-tech',
-    model:       '/models/building-type-a.glb',
-    modelScale:  1.5,
-    color: 0x1a6fff, accent: '#1a6fff', accentRgb: '26,111,255',
-    x: -10, z: -10,
-  },
   {
     label:       'Agent OPSYN',
     description: 'An AI-powered developer operations assistant featuring a four-zone architecture, originally built for a hackathon submission.',
     url:         'https://github.com/ANI-CPU-tech',
-    model:       '/models/building-type-b.glb',
-    modelScale:  1.5,
+    x: 0,        // centred in courtyard
+    z: 0,
+    y: 2.5,      // floating label height
     color: 0xff3d6e, accent: '#ff3d6e', accentRgb: '255,61,110',
-    x:  10, z: -10,
-  },
-  {
-    label:       'FitGyldrah',
-    description: 'A robust backend gym management system built with Python, Django, and PostgreSQL.',
-    url:         'https://github.com/ANI-CPU-tech',
-    model:       '/models/tree-large.glb',
-    modelScale:  2.0,
-    color: 0x2ecc71, accent: '#2ecc71', accentRgb: '46,204,113',
-    x: -10, z:  10,
-  },
-  {
-    label:       'About Me',
-    description: 'I am an engineering student with a passion for software development, technical hackathons, and community tech projects. My stack includes Python, Django, Docker, and experimenting with local LLMs via Ollama.',
-    url:         'https://github.com/ANI-CPU-tech',
-    model:       '/models/planter.glb',
-    modelScale:  2.5,
-    color: 0xf5a623, accent: '#f5a623', accentRgb: '245,166,35',
-    x:  10, z:  10,
   },
 ];
 
@@ -460,32 +519,22 @@ async function start() {
   // West  (-X face)
   addWall(world,  -edge, wallY,     0,  WALL_THICK / 2, WALL_HEIGHT, FLOOR_HALF);
 
-  // ── Zone models (GLTF) + labels + lights ─────────────────────────────────
-  // Load all four models in parallel; each call also creates the physics collider.
-  await Promise.all(PEDESTALS.map(async (ped) => {
-    const position = new THREE.Vector3(ped.x, 0, ped.z);
+  // ── Load Blender-authored level ───────────────────────────────────────────
+  await loadBlenderLevel(world);
 
-    // Load model + physics — loadModelWithPhysics measures the real bounding box
-    // after scaling and places a static Rapier cuboid collider to match.
-    const model = await loadModelWithPhysics(world, ped.model, position, ped.modelScale);
-
-    // Measure the loaded model's bounding box so we can float the label/light
-    // the right distance above its actual top face.
-    const box    = new THREE.Box3().setFromObject(model);
-    const top    = box.max.y;          // world-space Y of the model's top
-    const centre = new THREE.Vector3();
-    box.getCenter(centre);
-
-    // Floating label sprite — 1.1 units above the model top
+  // ── Interactive zone markers ──────────────────────────────────────────────
+  // Add floating labels and glow lights for each interactive zone
+  PEDESTALS.forEach((ped) => {
+    // Floating label sprite
     const label = buildLabelSprite(ped.label, ped.accent);
-    label.position.set(centre.x, top + 1.1, centre.z);
+    label.position.set(ped.x, ped.y, ped.z);
     scene.add(label);
 
-    // Glow point light — 0.5 units above the model top, no shadows (perf)
-    const pLight = new THREE.PointLight(ped.color, 1.2, 8);
-    pLight.position.set(centre.x, top + 0.5, centre.z);
+    // Glow point light
+    const pLight = new THREE.PointLight(ped.color, 1.5, 10);
+    pLight.position.set(ped.x, ped.y - 0.5, ped.z);
     scene.add(pLight);
-  }));
+  });
 
   // ── Player Physics ────────────────────────────────────────────────────────
   const playerBodyDesc = RAPIER.RigidBodyDesc

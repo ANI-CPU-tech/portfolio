@@ -7,11 +7,11 @@ import { OutputPass }      from 'three/examples/jsm/postprocessing/OutputPass.js
 import { GLTFLoader }      from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PLAYER_SPEED      = 5.0;
-const CAM_OFFSET        = new THREE.Vector3(10, 10, 10);
+const PLAYER_SPEED      = 3.5;    // walking pace for smaller character
+const CAM_OFFSET        = new THREE.Vector3(5, 5, 5);  // closer camera for smaller scale
 const CAM_LERP          = 0.08;
-const PLAYER_START_Y    = 0.8;
-const PROXIMITY_RADIUS  = 3.5;   // world units – trigger distance for UI prompt
+const PLAYER_START_Y    = 0.24;   // capsule height is ~0.48, centre at 0.24
+const PROXIMITY_RADIUS  = 1.8;    // close interaction distance
 
 // Floor is 40×40 units; half-extent = 20
 const FLOOR_HALF     = 20;
@@ -460,6 +460,11 @@ async function start() {
   // Character controller – offset 0.01 keeps the shape slightly away from surfaces
   // to avoid getting stuck in micro-gaps between colliders.
   const characterController = world.createCharacterController(0.01);
+  
+  // Enable autostep to climb small curbs/road edges (maxHeight 0.25, minWidth 0.05)
+  characterController.enableAutostep(0.25, 0.05, true);
+  // Snap to ground to prevent floating on uneven surfaces
+  characterController.enableSnapToGround(0.2);
 
   // ── Floor (40×40) ────────────────────────────────────────────────────────
   const floorBody = world.createRigidBody(
@@ -541,8 +546,8 @@ async function start() {
     .kinematicPositionBased()
     .setTranslation(0, PLAYER_START_Y, 0);
   const playerBody     = world.createRigidBody(playerBodyDesc);
-  // Store collider in its own variable so the character controller can reference it
-  const playerCollider = world.createCollider(RAPIER.ColliderDesc.capsule(0.3, 0.3), playerBody);
+  // Smaller capsule: radius 0.12, halfHeight 0.12 → total height ~0.48 units
+  const playerCollider = world.createCollider(RAPIER.ColliderDesc.capsule(0.12, 0.12), playerBody);
 
   // ── Player Sprite ─────────────────────────────────────────────────────────
   const playerSprite = new THREE.Sprite(
@@ -553,11 +558,14 @@ async function start() {
       sizeAttenuation: true,
     }),
   );
-  playerSprite.scale.set(0.9, 1.6, 1);
+  // Scaled down to fit the smaller character (width 0.35, height 0.6)
+  playerSprite.scale.set(0.35, 0.6, 1);
   // castShadow is intentionally NOT set — sprites break shadow maps in HD-2D style
   scene.add(playerSprite);
 
   const shadowSprite = buildShadowSprite();
+  // Scale shadow to match smaller character
+  shadowSprite.scale.set(0.4, 0.15, 1);
   scene.add(shadowSprite);
 
   // ── Movement ──────────────────────────────────────────────────────────────

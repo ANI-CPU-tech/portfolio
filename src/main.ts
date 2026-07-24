@@ -81,9 +81,24 @@ window.addEventListener('resize', () => {
 });
 
 // ─── WASD Input ──────────────────────────────────────────────────────────────
-const keys: Record<string, boolean> = { w: false, a: false, s: false, d: false };
-window.addEventListener('keydown', (e) => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = true; });
-window.addEventListener('keyup',   (e) => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = false; });
+const keys: Record<string, boolean> = { 
+  w: false, a: false, s: false, d: false,
+  ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false
+};
+window.addEventListener('keydown', (e) => { 
+  const k = e.key;
+  if (k.toLowerCase() in keys || k in keys) {
+    keys[k.toLowerCase()] = true;
+    keys[k] = true;
+  }
+});
+window.addEventListener('keyup', (e) => { 
+  const k = e.key;
+  if (k.toLowerCase() in keys || k in keys) {
+    keys[k.toLowerCase()] = false;
+    keys[k] = false;
+  }
+});
 
 // ─── Texture helpers ─────────────────────────────────────────────────────────
 
@@ -261,8 +276,8 @@ async function start() {
     spawnPos = new THREE.Vector3();
     dummyCube.getWorldPosition(spawnPos);
 
-    // Offset spawn position by half the cube height so character spawns on top
-    spawnPos.y += cubeSize.y / 2;
+    // Offset spawn position: half cube height + extra elevation to prevent spawn-in-floor snag
+    spawnPos.y += (cubeSize.y / 2) + 3.0;
 
     // Clamp the measured dimensions to sane bounds
     clampedWidth = Math.min(Math.max(cubeSize.x, 0.4), 2.5);
@@ -274,7 +289,7 @@ async function start() {
     // Fallback: no dummy cube found
     console.warn('Dummy_Cube anchor not found in GLB. Falling back to default spawn/scale.');
     
-    spawnPos = new THREE.Vector3(0, 10, 0);
+    spawnPos = new THREE.Vector3(0, 13, 0);  // elevated spawn
     clampedWidth = 0.8;
     clampedHeight = 1.2;
     PLAYER_SPEED = 3.6;  // 1.2 * 3
@@ -320,6 +335,7 @@ async function start() {
   const CAMERA_OFFSET = new THREE.Vector3(15, 15, 15);  // isometric offset from player
 
   const moveVec   = new THREE.Vector3();
+  let yVelocity = -0.1;  // small negative to start grounded
 
   // ── Initial sync: position sprites and camera at spawn point ─────────────
   playerSprite.position.set(spawnPos.x, spawnPos.y + 0.1, spawnPos.z);
@@ -340,32 +356,45 @@ async function start() {
     const delta = Math.min((now - lastTime) / 1000, 0.05);
     lastTime    = now;
 
-    // Input → desired movement delta for this frame
+    // Step physics simulation
+    world.step();
+
+    // ── Input → Desired Movement ──────────────────────────────────────────
     moveVec.set(0, 0, 0);
-    if (keys.w) moveVec.addScaledVector(CAM_FORWARD,  1);
-    if (keys.s) moveVec.addScaledVector(CAM_FORWARD, -1);
-    if (keys.d) moveVec.addScaledVector(CAM_RIGHT,    1);
-    if (keys.a) moveVec.addScaledVector(CAM_RIGHT,   -1);
+    if (keys.w || keys.ArrowUp)    moveVec.addScaledVector(CAM_FORWARD,  1);
+    if (keys.s || keys.ArrowDown)  moveVec.addScaledVector(CAM_FORWARD, -1);
+    if (keys.d || keys.ArrowRight) moveVec.addScaledVector(CAM_RIGHT,    1);
+    if (keys.a || keys.ArrowLeft)  moveVec.addScaledVector(CAM_RIGHT,   -1);
     if (moveVec.lengthSq() > 0) moveVec.normalize();
 
-    // Desired translation delta this frame (gravity handled by character controller)
+    // ── Gravity ────────────────────────────────────────────────────────────
+    const isGrounded = characterController.computedGrounded();
+    if (isGrounded) {
+      // Snap to ground with small negative velocity
+      yVelocity = -0.1;
+    } else {
+      // Apply gravity when airborne
+      yVelocity -= 9.81 * delta;
+    }
+
+    // ── Desired Movement (XZ horizontal + Y gravity) ──────────────────────
     const desiredMovement = {
       x: moveVec.x * PLAYER_SPEED * delta,
-      y: -9.81 * delta,  // gravity factor
+      y: yVelocity * delta,
       z: moveVec.z * PLAYER_SPEED * delta,
     };
 
-    // Let Rapier resolve collisions and slide the capsule along surfaces
+    // Let Rapier character controller resolve collisions and slopes
     characterController.computeColliderMovement(playerCollider, desiredMovement);
     const corrected = characterController.computedMovement();
 
+    // Apply corrected movement to kinematic body
     const cur = playerBody.translation();
     playerBody.setNextKinematicTranslation({
       x: cur.x + corrected.x,
-      y: cur.y + corrected.y,   // use corrected Y to allow settling and ground snapping
+      y: cur.y + corrected.y,
       z: cur.z + corrected.z,
     });
-    world.step();
 
     // Sync visuals
     const pos = playerBody.translation();

@@ -699,7 +699,7 @@ async function start() {
       const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
       const dist = playerPos.distanceTo(controlsAnchor.position);
       
-      if (dist < 10.0) {  // 10 world units is a comfortable radius
+      if (dist < 6.0) {  // Tightened radius so it doesn't trigger at spawn
         if (!canInteractControls) {
           controllerLabel.element.classList.add('visible');
           canInteractControls = true;

@@ -143,7 +143,7 @@ export function setupControlsModal() {
     <div class="about-modal" style="max-width: 400px; width: 90%; flex-direction: column; text-align: center;">
       <div class="about-close" id="controls-close-btn">X</div>
       <div class="about-content" style="width: 100%;">
-        <h1 style="font-family: 'Impact', sans-serif; font-size: 56px; margin: 0 0 5px 0; letter-spacing: 2px; text-transform: uppercase; color: #ffffff; text-shadow: 4px 4px 0px #000;">CONTROLS</h1>
+        <h1 style="font-family: 'Impact', sans-serif; font-size: 56px; margin: 35px 0 5px 0; letter-spacing: 2px; text-transform: uppercase; color: #ffffff; text-shadow: 4px 4px 0px #000;">CONTROLS</h1>
         <h3 style="color: #a3a3a3; margin: 0 0 25px 0; font-size: 16px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">How to navigate</h3>
         <ul style="color: #d1d1d1; line-height: 2.2; font-size: 18px; margin: 0 auto; padding: 0; list-style: none; display: inline-block; text-align: left;">
           <li><strong style="color: #fff; width: 30px; display: inline-block;">W</strong> - Move Forwards</li>

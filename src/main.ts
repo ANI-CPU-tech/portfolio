@@ -10,16 +10,9 @@ import { GLTFLoader }      from 'three/examples/jsm/loaders/GLTFLoader.js';
 const PLAYER_SPEED      = 3.5;    // walking pace for smaller character
 const CAM_OFFSET        = new THREE.Vector3(5, 5, 5);  // closer camera for smaller scale
 const CAM_LERP          = 0.08;
-const PLAYER_START_Y    = 0.24;   // capsule height is ~0.48, centre at 0.24
-const PROXIMITY_RADIUS  = 1.8;    // close interaction distance
-
-// Floor is 40×40 units; half-extent = 20
-const FLOOR_HALF     = 20;
-const FLOOR_THICK    = 0.25; // half-thickness of the floor slab
-
-// Wall thickness (invisible) – fat enough to never tunnel through
-const WALL_THICK     = 1.0;
-const WALL_HEIGHT    = 4.0;  // tall enough to block the capsule
+const PLAYER_START_X    = 0;      // spawn in village center
+const PLAYER_START_Y    = 10;     // spawn elevated, let gravity settle onto terrain
+const PLAYER_START_Z    = 0;
 
 // ─── Renderer ────────────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -96,68 +89,6 @@ const keys: Record<string, boolean> = { w: false, a: false, s: false, d: false }
 window.addEventListener('keydown', (e) => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = true; });
 window.addEventListener('keyup',   (e) => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = false; });
 
-// ─── Proximity UI refs ───────────────────────────────────────────────────────
-const proximityUI    = document.getElementById('proximity-ui')    as HTMLDivElement;
-const proximityLabel = document.getElementById('proximity-label') as HTMLParagraphElement;
-
-/** Show the prompt with the pedestal's accent colour */
-function showPrompt(name: string, accent: string, accentRgb: string) {
-  proximityLabel.style.setProperty('--accent-color', accent);
-  proximityLabel.style.setProperty('--accent-rgb',   accentRgb);
-  proximityLabel.innerHTML =
-    `Press <span class="key-badge">E</span>&nbsp;to view&nbsp;<span class="project-name">${name}</span>`;
-  proximityUI.classList.add('visible');
-}
-
-function hidePrompt() {
-  proximityUI.classList.remove('visible');
-}
-
-// ─── Modal refs & state ───────────────────────────────────────────────────────
-const projectModal      = document.getElementById('project-modal')      as HTMLDivElement;
-const modalTitle        = document.getElementById('modal-title')         as HTMLHeadingElement;
-const modalDescription  = document.getElementById('modal-description')   as HTMLParagraphElement;
-const modalAccentBar    = document.getElementById('modal-accent-bar')    as HTMLDivElement;
-const modalCloseBtn     = document.getElementById('modal-close')         as HTMLButtonElement;
-const modalLinkBtn      = document.getElementById('project-link')        as HTMLAnchorElement;
-
-let isModalOpen = false;
-
-function openModal(ped: { label: string; description: string; url: string; accent: string; accentRgb: string }) {
-  modalTitle.textContent       = ped.label;
-  modalDescription.textContent = ped.description;
-  modalLinkBtn.href            = ped.url;
-  // Apply accent colour as CSS custom properties on the card
-  projectModal.style.setProperty('--modal-accent-color', ped.accent);
-  projectModal.style.setProperty('--modal-accent-rgb',   ped.accentRgb);
-  modalAccentBar.style.background = ped.accent;
-  modalAccentBar.style.boxShadow  = `0 0 10px ${ped.accent}`;
-  projectModal.removeAttribute('hidden');
-  isModalOpen = true;
-  // Move focus to the close button for keyboard accessibility
-  modalCloseBtn.focus();
-}
-
-function closeModal() {
-  projectModal.setAttribute('hidden', '');
-  isModalOpen = false;
-}
-
-// Close on button click
-modalCloseBtn.addEventListener('click', closeModal);
-
-// Close on Escape key
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && isModalOpen) closeModal();
-});
-
-// Close on backdrop click (click outside the card)
-projectModal.addEventListener('click', (e) => {
-  if (e.target === projectModal || (e.target as HTMLElement).classList.contains('modal-backdrop')) {
-    closeModal();
-  }
-});
-
 // ─── Texture helpers ─────────────────────────────────────────────────────────
 
 function buildPlayerTexture(): THREE.CanvasTexture {
@@ -213,171 +144,35 @@ function buildShadowSprite(): THREE.Sprite {
   return sprite;
 }
 
-/** Render a text label into a Sprite that floats above a pedestal */
-function buildLabelSprite(text: string, accentColor: string): THREE.Sprite {
-  const W = 512, H = 128;
-  const c = document.createElement('canvas');
-  c.width = W; c.height = H;
-  const ctx = c.getContext('2d')!;
-
-  // Pill background
-  ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(10,10,20,0.78)';
-  ctx.beginPath();
-  ctx.roundRect(8, 8, W - 16, H - 16, 24);
-  ctx.fill();
-
-  // Accent border
-  ctx.strokeStyle = accentColor;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.roundRect(8, 8, W - 16, H - 16, 24);
-  ctx.stroke();
-
-  // Text
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 52px "Segoe UI", Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor = accentColor;
-  ctx.shadowBlur  = 18;
-  ctx.fillText(text, W / 2, H / 2);
-
-  const mat = new THREE.SpriteMaterial({
-    map: new THREE.CanvasTexture(c),
-    transparent: true,
-    depthWrite: false,
-    sizeAttenuation: true,
-  });
-  const sprite = new THREE.Sprite(mat);
-  // Scale so the label looks right in world space (wide pill, short height)
-  sprite.scale.set(4, 1, 1);
-  return sprite;
-}
-
 // ─── GLTF loader (singleton) ──────────────────────────────────────────────────
 const gltfLoader = new GLTFLoader();
-const textureLoader = new THREE.TextureLoader();
-
-// Shared texture palette for all GLTF models
-const paletteTexture = textureLoader.load('/models/colormap.png');
-paletteTexture.flipY      = false;                // GLTF models use lower-left origin
-paletteTexture.colorSpace = THREE.SRGBColorSpace; // proper color interpretation
-
-// ─── Physics helpers ──────────────────────────────────────────────────────────
-
-/** Add an invisible static wall collider (no mesh) */
-function addWall(
-  world: RAPIER.World,
-  x: number, y: number, z: number,
-  hx: number, hy: number, hz: number
-) {
-  const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y, z));
-  world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz), body);
-}
 
 /**
- * Load a GLB asset, enable shadows on all meshes, position + scale + rotate it,
- * then auto-fit a static Rapier cuboid collider from its bounding box.
- *
- * The collider centre is placed at the bounding-box centre of the scaled model
- * so it matches the visual exactly regardless of the GLB's internal pivot.
+ * Load the medieval castle terrain level with trimesh physics.
+ * Returns the loaded scene and creates a single static trimesh collider for terrain traversal.
  */
-async function loadModelWithPhysics(
-  world:     RAPIER.World,
-  url:       string,
-  position:  THREE.Vector3,
-  scale:     number,
-  rotationY: number = 0,
-): Promise<THREE.Group> {
-  const gltf  = await gltfLoader.loadAsync(url);
-  const model = gltf.scene;
+async function loadMedievalTerrain(world: RAPIER.World): Promise<THREE.Group> {
+  const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
+  const terrainScene = gltf.scene;
 
-  model.scale.setScalar(scale);
-  model.position.copy(position);
-  model.rotation.y = rotationY;  // Apply rotation BEFORE bounding box calculation
-
-  // Enable shadows on every mesh in the hierarchy + apply shared texture
-  model.traverse((node) => {
-    if ((node as THREE.Mesh).isMesh) {
-      const mesh = node as THREE.Mesh;
-      mesh.castShadow    = true;
-      mesh.receiveShadow = true;
-
-      // Apply the shared colormap palette texture
-      if (mesh.material) {
-        // Handle both single materials and material arrays
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        materials.forEach((mat) => {
-          if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
-            mat.map = paletteTexture;
-            mat.needsUpdate = true;
-          }
-        });
-      }
-    }
-  });
-
-  scene.add(model);
-
-  // ── Bounding-box physics collider ──────────────────────────────────────
-  // Must compute AFTER scale + position + rotation so Box3 is in world space.
-  const box    = new THREE.Box3().setFromObject(model);
-  const size   = new THREE.Vector3();
-  const centre = new THREE.Vector3();
-  box.getSize(size);
-  box.getCenter(centre);
-
-  // Rapier cuboid takes half-extents
-  const hx = size.x / 2;
-  const hy = size.y / 2;
-  const hz = size.z / 2;
-
-  const body = world.createRigidBody(
-    RAPIER.RigidBodyDesc.fixed().setTranslation(centre.x, centre.y, centre.z)
-  );
-  world.createCollider(RAPIER.ColliderDesc.cuboid(hx, hy, hz), body);
-
-  return model;
-}
-
-/**
- * Load the custom Blender-authored city level with trimesh physics.
- * Returns the loaded scene and creates a single static trimesh collider.
- */
-async function loadBlenderLevel(world: RAPIER.World): Promise<THREE.Group> {
-  const gltf = await gltfLoader.loadAsync('/models/custom-city.glb');
-  const levelScene = gltf.scene;
-
-  // Apply shared texture palette and enable shadows on all meshes
-  levelScene.traverse((node) => {
+  // Enable shadows on all meshes
+  terrainScene.traverse((node) => {
     if ((node as THREE.Mesh).isMesh) {
       const mesh = node as THREE.Mesh;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-
-      // Apply colormap texture
-      if (mesh.material) {
-        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        materials.forEach((mat) => {
-          if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
-            mat.map = paletteTexture;
-            mat.needsUpdate = true;
-          }
-        });
-      }
     }
   });
 
-  scene.add(levelScene);
+  scene.add(terrainScene);
 
   // ── Extract geometry for Rapier trimesh collider ──────────────────────────
-  // Collect all vertices and indices from every mesh in the level
+  // Collect all vertices and indices from every mesh in the terrain
   const allVertices: number[] = [];
   const allIndices: number[] = [];
   let vertexOffset = 0;
 
-  levelScene.traverse((node) => {
+  terrainScene.traverse((node) => {
     if ((node as THREE.Mesh).isMesh) {
       const mesh = node as THREE.Mesh;
       const geometry = mesh.geometry;
@@ -412,44 +207,18 @@ async function loadBlenderLevel(world: RAPIER.World): Promise<THREE.Group> {
     }
   });
 
-  // Create single static trimesh collider for entire level
+  // Create single static trimesh collider for entire terrain
   if (allVertices.length > 0 && allIndices.length > 0) {
     const vertices = new Float32Array(allVertices);
     const indices = new Uint32Array(allIndices);
 
     const trimeshCollider = RAPIER.ColliderDesc.trimesh(vertices, indices);
-    const levelBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
-    world.createCollider(trimeshCollider, levelBody);
+    const terrainBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return levelScene;
+  return terrainScene;
 }
-
-// ─── Interactive zone data ───────────────────────────────────────────────────
-interface PedestalDef {
-  label:       string;
-  description: string;
-  url:         string;
-  x:           number;
-  z:           number;
-  y:           number;   // height for floating label
-  color:       number;
-  accent:      string;
-  accentRgb:   string;
-}
-
-// Single interactive zone positioned in the Blender level's courtyard
-const PEDESTALS: PedestalDef[] = [
-  {
-    label:       'Agent OPSYN',
-    description: 'An AI-powered developer operations assistant featuring a four-zone architecture, originally built for a hackathon submission.',
-    url:         'https://github.com/ANI-CPU-tech',
-    x: 0,        // centred in courtyard
-    z: 0,
-    y: 2.5,      // floating label height
-    color: 0xff3d6e, accent: '#ff3d6e', accentRgb: '255,61,110',
-  },
-];
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 async function start() {
@@ -461,90 +230,18 @@ async function start() {
   // to avoid getting stuck in micro-gaps between colliders.
   const characterController = world.createCharacterController(0.01);
   
-  // Enable autostep to climb small curbs/road edges (maxHeight 0.25, minWidth 0.05)
-  characterController.enableAutostep(0.25, 0.05, true);
-  // Snap to ground to prevent floating on uneven surfaces
-  characterController.enableSnapToGround(0.2);
+  // Enable terrain traversal features
+  characterController.enableAutostep(0.3, 0.1, true);           // handles steps and path edges
+  characterController.enableSnapToGround(0.4);                   // prevents floating on slopes
+  characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
-  // ── Floor (40×40) ────────────────────────────────────────────────────────
-  const floorBody = world.createRigidBody(
-    RAPIER.RigidBodyDesc.fixed().setTranslation(0, -FLOOR_THICK, 0)
-  );
-  world.createCollider(
-    RAPIER.ColliderDesc.cuboid(FLOOR_HALF, FLOOR_THICK, FLOOR_HALF),
-    floorBody,
-  );
-
-  const floorMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(FLOOR_HALF * 2, FLOOR_THICK * 2, FLOOR_HALF * 2),
-    new THREE.MeshStandardMaterial({ color: 0x263040, roughness: 0.85, metalness: 0.05 }),
-  );
-  floorMesh.receiveShadow = true;
-  floorMesh.position.set(0, -FLOOR_THICK, 0);
-  scene.add(floorMesh);
-
-  // Grid
-  const grid = new THREE.GridHelper(FLOOR_HALF * 2, 40, 0x344456, 0x1e2c3a);
-  grid.position.y = 0.01;
-  scene.add(grid);
-
-  // ── Atmospheric dust particles ────────────────────────────────────────────
-  const PARTICLE_COUNT = 500;
-  const dustPositions  = new Float32Array(PARTICLE_COUNT * 3);
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
-    dustPositions[i * 3 + 0] = (Math.random() - 0.5) * FLOOR_HALF * 2; // X: ±20
-    dustPositions[i * 3 + 1] =  Math.random() * 10;                     // Y:  0–10
-    dustPositions[i * 3 + 2] = (Math.random() - 0.5) * FLOOR_HALF * 2; // Z: ±20
-  }
-  const dustGeo = new THREE.BufferGeometry();
-  dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
-
-  const dustMat = new THREE.PointsMaterial({
-    color:       0xffffff,
-    size:        0.1,
-    transparent: true,
-    opacity:     0.45,
-    depthWrite:  false,           // don't occlude geometry behind particles
-    sizeAttenuation: true,
-  });
-  const particles = new THREE.Points(dustGeo, dustMat);
-  scene.add(particles);
-
-  // ── Invisible boundary walls ─────────────────────────────────────────────
-  // Each wall is placed just outside the floor edge; centre at mid-height.
-  const wallY  = WALL_HEIGHT / 2;
-  const edge   = FLOOR_HALF + WALL_THICK / 2;
-
-  // North (+Z face)
-  addWall(world,      0, wallY,  edge,  FLOOR_HALF, WALL_HEIGHT, WALL_THICK / 2);
-  // South (-Z face)
-  addWall(world,      0, wallY, -edge,  FLOOR_HALF, WALL_HEIGHT, WALL_THICK / 2);
-  // East  (+X face)
-  addWall(world,   edge, wallY,     0,  WALL_THICK / 2, WALL_HEIGHT, FLOOR_HALF);
-  // West  (-X face)
-  addWall(world,  -edge, wallY,     0,  WALL_THICK / 2, WALL_HEIGHT, FLOOR_HALF);
-
-  // ── Load Blender-authored level ───────────────────────────────────────────
-  await loadBlenderLevel(world);
-
-  // ── Interactive zone markers ──────────────────────────────────────────────
-  // Add floating labels and glow lights for each interactive zone
-  PEDESTALS.forEach((ped) => {
-    // Floating label sprite
-    const label = buildLabelSprite(ped.label, ped.accent);
-    label.position.set(ped.x, ped.y, ped.z);
-    scene.add(label);
-
-    // Glow point light
-    const pLight = new THREE.PointLight(ped.color, 1.5, 10);
-    pLight.position.set(ped.x, ped.y - 0.5, ped.z);
-    scene.add(pLight);
-  });
+  // ── Load medieval castle & village terrain ────────────────────────────────
+  await loadMedievalTerrain(world);
 
   // ── Player Physics ────────────────────────────────────────────────────────
   const playerBodyDesc = RAPIER.RigidBodyDesc
     .kinematicPositionBased()
-    .setTranslation(0, PLAYER_START_Y, 0);
+    .setTranslation(PLAYER_START_X, PLAYER_START_Y, PLAYER_START_Z);
   const playerBody     = world.createRigidBody(playerBodyDesc);
   // Smaller capsule: radius 0.12, halfHeight 0.12 → total height ~0.48 units
   const playerCollider = world.createCollider(RAPIER.ColliderDesc.capsule(0.12, 0.12), playerBody);
@@ -573,23 +270,18 @@ async function start() {
   const CAM_RIGHT   = new THREE.Vector3( 1, 0, -1).normalize();
 
   const moveVec   = new THREE.Vector3();
-  const camTarget = new THREE.Vector3();
 
-  // BOUND kept for reference; walls + character controller handle actual clamping
-  const BOUND = FLOOR_HALF - 0.5; void BOUND;
+  // ── Initial sync: position sprites and camera at spawn point ─────────────
+  playerSprite.position.set(PLAYER_START_X, PLAYER_START_Y + 0.1, PLAYER_START_Z);
+  shadowSprite.position.set(PLAYER_START_X, 0.02, PLAYER_START_Z);
+  camera.position.set(
+    PLAYER_START_X + CAM_OFFSET.x,
+    CAM_OFFSET.y,
+    PLAYER_START_Z + CAM_OFFSET.z
+  );
+  camera.lookAt(PLAYER_START_X, 0, PLAYER_START_Z);
 
   let lastTime = performance.now();
-
-  // ── Proximity state ───────────────────────────────────────────────────────
-  // Track which pedestal the player is currently near (null = none)
-  let nearestPedestal: PedestalDef | null = null;
-
-  // E key interaction
-  window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() !== 'e') return;
-    if (!nearestPedestal || isModalOpen) return;
-    openModal(nearestPedestal);
-  });
 
   // ── Game Loop ─────────────────────────────────────────────────────────────
   function gameLoop() {
@@ -600,20 +292,17 @@ async function start() {
     lastTime    = now;
 
     // Input → desired movement delta for this frame
-    // Movement is blocked while a modal is open
     moveVec.set(0, 0, 0);
-    if (!isModalOpen) {
-      if (keys.w) moveVec.addScaledVector(CAM_FORWARD,  1);
-      if (keys.s) moveVec.addScaledVector(CAM_FORWARD, -1);
-      if (keys.d) moveVec.addScaledVector(CAM_RIGHT,    1);
-      if (keys.a) moveVec.addScaledVector(CAM_RIGHT,   -1);
-      if (moveVec.lengthSq() > 0) moveVec.normalize();
-    }
+    if (keys.w) moveVec.addScaledVector(CAM_FORWARD,  1);
+    if (keys.s) moveVec.addScaledVector(CAM_FORWARD, -1);
+    if (keys.d) moveVec.addScaledVector(CAM_RIGHT,    1);
+    if (keys.a) moveVec.addScaledVector(CAM_RIGHT,   -1);
+    if (moveVec.lengthSq() > 0) moveVec.normalize();
 
-    // Desired translation delta this frame (Y = 0, we lock to floor height)
+    // Desired translation delta this frame (gravity handled by character controller)
     const desiredMovement = {
       x: moveVec.x * PLAYER_SPEED * delta,
-      y: 0,
+      y: -9.81 * delta,  // gravity factor
       z: moveVec.z * PLAYER_SPEED * delta,
     };
 
@@ -624,7 +313,7 @@ async function start() {
     const cur = playerBody.translation();
     playerBody.setNextKinematicTranslation({
       x: cur.x + corrected.x,
-      y: PLAYER_START_Y,        // keep locked to floor — no gravity needed for kinematic
+      y: cur.y + corrected.y,   // use corrected Y to allow settling and ground snapping
       z: cur.z + corrected.z,
     });
     world.step();
@@ -634,37 +323,12 @@ async function start() {
     playerSprite.position.set(pos.x, pos.y + 0.1, pos.z);
     shadowSprite.position.set(pos.x, 0.02, pos.z);
 
-    // ── Proximity check ───────────────────────────────────────────────────
-    // Compare XZ distance only (ignore Y) to each pedestal centre
-    let found: PedestalDef | null = null;
-    let closestDist = Infinity;
-
-    for (const ped of PEDESTALS) {
-      const dx   = pos.x - ped.x;
-      const dz   = pos.z - ped.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
-      if (dist < PROXIMITY_RADIUS && dist < closestDist) {
-        closestDist = dist;
-        found = ped;
-      }
-    }
-
-    if (found !== nearestPedestal) {
-      nearestPedestal = found;
-      if (found) {
-        showPrompt(found.label, found.accent, found.accentRgb);
-      } else {
-        hidePrompt();
-      }
-    }
-
     // Camera follow
-    camTarget.set(pos.x + CAM_OFFSET.x, CAM_OFFSET.y, pos.z + CAM_OFFSET.z);
-    camera.position.lerp(camTarget, CAM_LERP);
+    camera.position.lerp(
+      new THREE.Vector3(pos.x + CAM_OFFSET.x, CAM_OFFSET.y, pos.z + CAM_OFFSET.z),
+      CAM_LERP
+    );
     camera.lookAt(pos.x, 0, pos.z);
-
-    // Slowly rotate dust particles for a drifting atmosphere
-    particles.rotation.y += 0.0005;
 
     // Post-processed render (bloom → output)
     composer.render();

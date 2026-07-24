@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { GLTFLoader }      from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CAM_OFFSET        = new THREE.Vector3(5, 5, 5);  // closer camera for smaller scale
@@ -14,6 +15,15 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0x0a0a0f);
+
+// ─── CSS2D Label Renderer ─────────────────────────────────────────────────────
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(window.innerWidth, window.innerHeight);
+labelRenderer.domElement.style.position = 'absolute';
+labelRenderer.domElement.style.top = '0px';
+labelRenderer.domElement.style.pointerEvents = 'none';  // Let clicks pass through to the game
+labelRenderer.domElement.style.zIndex = '10';  // Above WebGL canvas
+document.body.appendChild(labelRenderer.domElement);
 
 // ─── Scene ───────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -41,6 +51,7 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  labelRenderer.setSize(window.innerWidth, window.innerHeight);
 });
 
 // ─── WASD Input ──────────────────────────────────────────────────────────────
@@ -130,6 +141,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   dummyCube: THREE.Object3D | null;
   dummySphere: THREE.Object3D | null;
   aboutStatue: THREE.Object3D | null;
+  aboutLabel: CSS2DObject | null;
 }> {
   const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
   const terrainScene = gltf.scene;
@@ -172,11 +184,24 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     }
   });
 
-  // Find the about-statue interaction point
+  // Find the about-statue interaction point and attach 3D label
   let aboutStatue: THREE.Object3D | null = null;
+  let aboutLabel: CSS2DObject | null = null;
+  
   terrainScene.traverse((child) => {
     if (!aboutStatue && (child.name.toLowerCase().includes('about-statue') || child.name.toLowerCase().includes('about_statue'))) {
       aboutStatue = child;
+      
+      // Create stylized 3D label with nested structure to avoid transform conflicts
+      const labelContainer = document.createElement('div');
+      labelContainer.className = 'bruno-label-container';
+      labelContainer.innerHTML = `<div class="bruno-label-inner">ABOUT ME <div class="key-indicator">E</div></div>`;
+      
+      aboutLabel = new CSS2DObject(labelContainer);
+      aboutLabel.position.set(0, 2.5, 0);  // Hover slightly above the statue
+      aboutStatue.add(aboutLabel);
+      
+      console.log('Attached 3D label to about-statue');
     }
   });
 
@@ -231,7 +256,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue };
+  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel };
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -250,7 +275,7 @@ async function start() {
   characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
   // ── Load medieval castle & village terrain ────────────────────────────────
-  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue } = await loadMedievalTerrain(world);
+  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel } = await loadMedievalTerrain(world);
 
   // ── Get About Statue Position ──────────────────────────────────────────────
   const aboutStatuePos = new THREE.Vector3();
@@ -260,6 +285,46 @@ async function start() {
   } else {
     console.warn('about-statue not found in GLB. Interaction will be disabled.');
   }
+
+  // ── Inject Stylized CSS for 3D Label ───────────────────────────────────────
+  const style = document.createElement('style');
+  style.innerHTML = `
+    .bruno-label-container {
+      /* Three.js controls this wrapper's transform. Do NOT put scales/rotations here. */
+      pointer-events: none;
+    }
+    .bruno-label-inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #1a1a1a;
+      color: #ffffff;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-family: 'Impact', 'Arial Black', sans-serif;
+      font-size: 20px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      border: 3px solid #ffffff;
+      box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+      transform: scale(0) translateY(20px);
+      opacity: 0;
+      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+    }
+    .bruno-label-container.visible .bruno-label-inner {
+      transform: scale(1) translateY(0px);
+      opacity: 1;
+    }
+    .key-indicator {
+      background: #ffffff;
+      color: #1a1a1a;
+      padding: 2px 8px;
+      border-radius: 2px;
+      font-weight: bold;
+      transform: rotate(5deg);
+    }
+  `;
+  document.head.appendChild(style);
 
   // ── Configure Sun Light from Dummy_Sphere ─────────────────────────────────
   if (dummySphere) {
@@ -494,13 +559,6 @@ async function start() {
   // ── Interaction State ──────────────────────────────────────────────────────
   let canInteractAbout = false;
 
-  // Create interaction prompt UI
-  const interactPrompt = document.createElement('div');
-  interactPrompt.id = 'interact-prompt';
-  interactPrompt.innerText = 'Press [E] to Interact';
-  interactPrompt.style.cssText = 'position: absolute; bottom: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 8px; font-family: sans-serif; font-weight: bold; display: none; pointer-events: none; z-index: 1000; transition: opacity 0.2s;';
-  document.body.appendChild(interactPrompt);
-
   // Handle E key interaction
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'e' && canInteractAbout) {
@@ -592,18 +650,21 @@ async function start() {
     shadowSprite.position.set(pos.x, 0.02, pos.z);
 
     // ── Proximity Detection for About Statue ───────────────────────────────
-    if (aboutStatue) {
+    if (aboutStatue && aboutLabel) {
+      // Update statue position dynamically every frame
+      aboutStatue.getWorldPosition(aboutStatuePos);
+      
       const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
       const distance = playerPos.distanceTo(aboutStatuePos);
       
-      if (distance < 4.0) {  // Interaction radius
+      if (distance < 5.0) {  // Interaction radius (slightly larger)
         if (!canInteractAbout) {
-          interactPrompt.style.display = 'block';
+          aboutLabel.element.classList.add('visible');
           canInteractAbout = true;
         }
       } else {
         if (canInteractAbout) {
-          interactPrompt.style.display = 'none';
+          aboutLabel.element.classList.remove('visible');
           canInteractAbout = false;
         }
       }
@@ -618,8 +679,9 @@ async function start() {
     camera.position.lerp(targetCamPos, CAM_LERP);
     camera.lookAt(pos.x, pos.y, pos.z);
 
-    // Post-processed render (bloom → output)
+    // Render WebGL scene and CSS2D labels
     renderer.render(scene, camera);
+    labelRenderer.render(scene, camera);
   }
 
   gameLoop();

@@ -286,7 +286,7 @@ async function start() {
     console.warn('about-statue not found in GLB. Interaction will be disabled.');
   }
 
-  // ── Inject Stylized CSS for 3D Label ───────────────────────────────────────
+  // ── Inject Stylized CSS for 3D Label and Modal ─────────────────────────────
   const style = document.createElement('style');
   style.innerHTML = `
     .bruno-label-container {
@@ -322,6 +322,88 @@ async function start() {
       border-radius: 2px;
       font-weight: bold;
       transform: rotate(5deg);
+    }
+    .about-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      backdrop-filter: blur(5px);
+    }
+    .about-modal {
+      background: #1a1a1a;
+      color: #ffffff;
+      border: 4px solid #ffffff;
+      border-radius: 8px;
+      box-shadow: 10px 10px 0px rgba(0,0,0,0.8);
+      width: 90%;
+      max-width: 650px;
+      padding: 40px;
+      position: relative;
+      font-family: sans-serif;
+      display: flex;
+      gap: 30px;
+      align-items: center;
+    }
+    .about-close {
+      position: absolute;
+      top: -20px;
+      right: -20px;
+      background: #ffffff;
+      color: #1a1a1a;
+      border: 4px solid #1a1a1a;
+      box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+      width: 50px;
+      height: 50px;
+      font-family: 'Impact', sans-serif;
+      font-size: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .about-close:active {
+      transform: translate(4px, 4px);
+      box-shadow: 0px 0px 0px rgba(0,0,0,0.5);
+    }
+    .about-img {
+      width: 180px;
+      height: 180px;
+      background: #333;
+      border: 4px solid #ffffff;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .about-content h1 {
+      font-family: 'Impact', sans-serif;
+      font-size: 42px;
+      margin: 0 0 5px 0;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .about-content h3 {
+      color: #cccccc;
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .about-content p {
+      line-height: 1.6;
+      font-size: 16px;
+      margin-bottom: 15px;
+    }
+    .about-content ul {
+      padding-left: 20px;
+      margin-top: 10px;
+      line-height: 1.6;
     }
   `;
   document.head.appendChild(style);
@@ -556,16 +638,50 @@ async function start() {
 
   let lastTime = performance.now();
 
+  // ── Create About Me Modal ──────────────────────────────────────────────────
+  const modalOverlay = document.createElement('div');
+  modalOverlay.className = 'about-overlay';
+  modalOverlay.id = 'about-modal-overlay';
+  modalOverlay.innerHTML = `
+    <div class="about-modal">
+      <div class="about-close" id="about-close-btn">X</div>
+      <img src="/models/profile.jpg" alt="Profile" class="about-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIyNCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlBob3RvPC90ZXh0Pjwvc3ZnPg=='" />
+      <div class="about-content">
+        <h1>Anirudh</h1>
+        <h3>Engineering Student & Full-Stack Dev</h3>
+        <p>Welcome to my interactive portfolio! I am passionate about building robust systems from the ground up.</p>
+        <p><strong>What I do:</strong></p>
+        <ul>
+          <li>Architecting scalable backends & managing Docker environments</li>
+          <li>Competing in intense software engineering hackathons</li>
+          <li>Experimenting with AI cinematic video generation</li>
+        </ul>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modalOverlay);
+
   // ── Interaction State ──────────────────────────────────────────────────────
   let canInteractAbout = false;
+  let isAboutModalOpen = false;
 
   // Handle E key interaction
   window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'e' && canInteractAbout) {
-      // Placeholder for the actual About Me modal
-      alert('Welcome to my Portfolio! About Me section triggered.');
-      // You can replace this later with logic to show a custom HTML modal.
+    if (e.key.toLowerCase() === 'e') {
+      if (canInteractAbout && !isAboutModalOpen) {
+        modalOverlay.style.display = 'flex';
+        isAboutModalOpen = true;
+      } else if (isAboutModalOpen) {
+        modalOverlay.style.display = 'none';
+        isAboutModalOpen = false;
+      }
     }
+  });
+
+  // Handle close button click
+  document.getElementById('about-close-btn')!.addEventListener('click', () => {
+    modalOverlay.style.display = 'none';
+    isAboutModalOpen = false;
   });
 
   // ── Game Loop ─────────────────────────────────────────────────────────────

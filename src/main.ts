@@ -198,7 +198,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
       labelContainer.innerHTML = `<div class="bruno-label-inner">ABOUT ME <div class="key-indicator">E</div></div>`;
       
       aboutLabel = new CSS2DObject(labelContainer);
-      aboutLabel.position.set(0, 2.5, 0);  // Hover slightly above the statue
+      aboutLabel.position.set(1.2, 0.8, 0);  // Lower and to the side of the statue
       aboutStatue.add(aboutLabel);
       
       console.log('Attached 3D label to about-statue');

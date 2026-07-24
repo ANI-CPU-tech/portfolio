@@ -146,6 +146,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   aboutLabel: CSS2DObject | null;
   controllerBase: THREE.Object3D | null;
   controllerLabel: CSS2DObject | null;
+  controlsAnchor: THREE.Group | null;
 }> {
   const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
   const terrainScene = gltf.scene;
@@ -212,20 +213,31 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   // Find the controller_base interaction point and attach 3D label
   let controllerBase: THREE.Object3D | null = null;
   let controllerLabel: CSS2DObject | null = null;
+  let controlsAnchor: THREE.Group | null = null;
   
   terrainScene.traverse((child) => {
-    if (!controllerBase && child.name.toLowerCase() === 'controller_base') {
-      controllerBase = child;
+    if ((child.name.toLowerCase() === 'controller' || child.name.toLowerCase() === 'controller_base') && !controlsAnchor) {
+      // Ensure we only do this once
+      const worldPos = new THREE.Vector3();
+      child.getWorldPosition(worldPos);
+      
+      // Create a clean anchor at the root level, bypassing GLB scale/rotation matrices
+      controlsAnchor = new THREE.Group();
+      controlsAnchor.position.copy(worldPos);
+      // Move it strictly 4 world units up, and 2 units forward
+      controlsAnchor.position.y += 4.0;
+      controlsAnchor.position.z += 2.0;
+      // Add directly to the main scene (or modelScene), NOT the child!
+      scene.add(controlsAnchor);
       
       const labelContainer = document.createElement('div');
       labelContainer.className = 'bruno-label-container';
       labelContainer.innerHTML = `<div class="bruno-label-inner">CONTROLS <div class="key-indicator">E</div></div>`;
       
       controllerLabel = new CSS2DObject(labelContainer);
-      controllerLabel.position.set(0, 2.5, 0);  // Adjust Y offset if it sits too high or low
-      controllerBase.add(controllerLabel);
+      controlsAnchor.add(controllerLabel);
       
-      console.log('Attached 3D label to controller_base');
+      console.log('✅ Created independent scene anchor for controls label at:', controlsAnchor.position);
     }
   });
 
@@ -288,7 +300,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel };
+  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel, controlsAnchor };
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -307,7 +319,7 @@ async function start() {
   characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
   // ── Load medieval castle & village terrain ────────────────────────────────
-  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel } = await loadMedievalTerrain(world);
+  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel, controlsAnchor } = await loadMedievalTerrain(world);
 
   // ── Get About Statue Position ──────────────────────────────────────────────
   const aboutStatuePos = new THREE.Vector3();
@@ -682,13 +694,12 @@ async function start() {
     }
 
     // ── Proximity Detection for Controller Base ────────────────────────────
-    if (controllerBase && controllerLabel) {
-      controllerBase.getWorldPosition(controllerPos);
-      
+    if (controlsAnchor && controllerLabel) {
+      // Just measure distance straight to the independent anchor
       const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
-      const dist = playerPos.distanceTo(controllerPos);
+      const dist = playerPos.distanceTo(controlsAnchor.position);
       
-      if (dist < 6.0) {  // Slightly larger radius since the controller is giant
+      if (dist < 10.0) {  // 10 world units is a comfortable radius
         if (!canInteractControls) {
           controllerLabel.element.classList.add('visible');
           canInteractControls = true;

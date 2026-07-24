@@ -147,6 +147,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   controllerBase: THREE.Object3D | null;
   controllerLabel: CSS2DObject | null;
   controlsAnchor: THREE.Group | null;
+  introCameraStartPos: THREE.Vector3;
 }> {
   const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
   const terrainScene = gltf.scene;
@@ -241,6 +242,16 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     }
   });
 
+  // Find the DummyCone for intro camera position
+  const introCameraStartPos = new THREE.Vector3();
+  terrainScene.traverse((child) => {
+    if (child.name.toLowerCase().includes('dummycone')) {
+      child.getWorldPosition(introCameraStartPos);
+      child.visible = false;
+      console.log('Found intro camera anchor at:', introCameraStartPos);
+    }
+  });
+
   // ── Extract geometry for Rapier trimesh collider ──────────────────────────
   // Collect all vertices and indices from every mesh in the terrain
   const allVertices: number[] = [];
@@ -300,7 +311,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel, controlsAnchor };
+  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel, controlsAnchor, introCameraStartPos };
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -319,7 +330,7 @@ async function start() {
   characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
   // ── Load medieval castle & village terrain ────────────────────────────────
-  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel, controlsAnchor } = await loadMedievalTerrain(world);
+  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel, controlsAnchor, introCameraStartPos } = await loadMedievalTerrain(world);
 
   // ── Get About Statue Position ──────────────────────────────────────────────
   const aboutStatuePos = new THREE.Vector3();
@@ -342,6 +353,26 @@ async function start() {
   // ── Setup Modals ───────────────────────────────────────────────────────────
   const aboutModal = setupAboutModal();
   const controlsModal = setupControlsModal();
+
+  // ── Setup Intro UI Overlay ─────────────────────────────────────────────────
+  const introUI = document.createElement('div');
+  introUI.id = 'intro-ui';
+  introUI.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; z-index: 3000; text-align: center; transition: opacity 0.1s;';
+  introUI.innerHTML = `
+    <h1 style="font-family: 'Impact', sans-serif; font-size: 6vw; color: #4388e0; -webkit-text-stroke: 2px #ffffff; text-transform: uppercase; margin: 0; letter-spacing: 2px; text-shadow: 5px 5px 0px #000;">WELCOME TO ANI CHAN'S WORLD</h1>
+    <p style="font-family: sans-serif; font-size: 24px; color: #ffffff; margin-top: 20px; font-weight: bold; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 30px; animation: bounce 2s infinite;">↓ Scroll to Enter ↓</p>
+    <style>
+      @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(10px); }
+      }
+    </style>
+  `;
+  document.body.appendChild(introUI);
+
+  // ── Intro State Variables ──────────────────────────────────────────────────
+  let isIntroActive = true;
+  let introScrollProgress = 0; // Goes from 0.0 to 1.0
 
   // ── Configure Sun Light from Dummy_Sphere ─────────────────────────────────
   if (dummySphere) {
@@ -591,6 +622,25 @@ async function start() {
     }
   });
 
+  // ── Scroll Event for Intro Sequence ────────────────────────────────────────
+  window.addEventListener('wheel', (e) => {
+    if (!isIntroActive) return;
+    
+    // Increase progress based on scroll delta (adjust 0.0005 for sensitivity)
+    introScrollProgress += e.deltaY * 0.0005;
+    
+    // Clamp between 0 and 1
+    introScrollProgress = Math.max(0, Math.min(1, introScrollProgress));
+    
+    // Fade out the UI as you scroll
+    introUI.style.opacity = (1 - introScrollProgress).toString();
+    
+    if (introScrollProgress >= 1) {
+      isIntroActive = false;
+      introUI.style.display = 'none'; // Hide completely once done
+    }
+  });
+
   // ── Game Loop ─────────────────────────────────────────────────────────────
   function gameLoop() {
     requestAnimationFrame(gameLoop);
@@ -609,10 +659,14 @@ async function start() {
 
     // ── Input → Desired Movement ──────────────────────────────────────────
     moveVec.set(0, 0, 0);
-    if (keys.w || keys.ArrowUp)    moveVec.addScaledVector(CAM_FORWARD,  1);
-    if (keys.s || keys.ArrowDown)  moveVec.addScaledVector(CAM_FORWARD, -1);
-    if (keys.d || keys.ArrowRight) moveVec.addScaledVector(CAM_RIGHT,    1);
-    if (keys.a || keys.ArrowLeft)  moveVec.addScaledVector(CAM_RIGHT,   -1);
+    
+    // Lock player input during intro
+    if (!isIntroActive) {
+      if (keys.w || keys.ArrowUp)    moveVec.addScaledVector(CAM_FORWARD,  1);
+      if (keys.s || keys.ArrowDown)  moveVec.addScaledVector(CAM_FORWARD, -1);
+      if (keys.d || keys.ArrowRight) moveVec.addScaledVector(CAM_RIGHT,    1);
+      if (keys.a || keys.ArrowLeft)  moveVec.addScaledVector(CAM_RIGHT,   -1);
+    }
     
     const isMoving = moveVec.lengthSq() > 0;
     if (isMoving) moveVec.normalize();
@@ -718,8 +772,18 @@ async function start() {
       CAMERA_OFFSET.y,
       pos.z + CAMERA_OFFSET.z
     );
-    camera.position.lerp(targetCamPos, CAM_LERP);
-    camera.lookAt(pos.x, pos.y, pos.z);
+    const targetLookAt = new THREE.Vector3(pos.x, pos.y, pos.z);
+    
+    if (isIntroActive) {
+      // Interpolate from DummyCone to the normal gameplay camera position based on scroll
+      camera.position.lerpVectors(introCameraStartPos, targetCamPos, introScrollProgress);
+      // Keep looking at the player so the camera naturally tilts down as it flies in
+      camera.lookAt(targetLookAt);
+    } else {
+      // Normal gameplay camera logic (smooth follow)
+      camera.position.lerp(targetCamPos, CAM_LERP);
+      camera.lookAt(targetLookAt);
+    }
 
     // Render WebGL scene and CSS2D labels
     renderer.render(scene, camera);

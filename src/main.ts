@@ -120,7 +120,6 @@ function buildShadowSprite(): THREE.Sprite {
 
 // ─── GLTF loader (singleton) ──────────────────────────────────────────────────
 const gltfLoader = new GLTFLoader();
-const textureLoader = new THREE.TextureLoader();
 
 /**
  * Load the medieval castle terrain level with trimesh physics.
@@ -354,32 +353,32 @@ async function start() {
     playerBody
   );
 
-  // ── Player Sprite ─────────────────────────────────────────────────────────
-  // Load pixel-art character texture
-  const charTexture = textureLoader.load('/models/texture-j.png');
-  charTexture.flipY = false;  // CRITICAL: GLTF UVs require flipY = false
-  charTexture.magFilter = THREE.NearestFilter;  // Crisp pixel rendering
-  charTexture.minFilter = THREE.NearestFilter;  // No blur on minification
-  charTexture.colorSpace = THREE.SRGBColorSpace;  // Correct color interpretation
-
-  // Load 3D character model
+  // ── Player Character ──────────────────────────────────────────────────────
+  // Load 3D character model with embedded texture
   const characterGltf = await gltfLoader.loadAsync('/models/character-j.glb');
   const characterModel = characterGltf.scene;
 
-  // Apply texture and enable shadows on character meshes
+  // Apply crisp pixel filtering to embedded texture and enable shadows
   characterModel.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
-      // Apply crisp pixel texture with white base color
+      // Fix embedded texture filtering for pixel-art style
       if (mesh.material) {
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         materials.forEach((mat) => {
           if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
-            mat.color = new THREE.Color(0xffffff);  // White base to avoid tinting
-            mat.map = charTexture;
+            // Set white base color to avoid tinting
+            mat.color.setHex(0xffffff);
+            
+            // Apply NearestFilter to embedded texture for crisp pixels
+            if (mat.map) {
+              mat.map.magFilter = THREE.NearestFilter;
+              mat.map.minFilter = THREE.NearestFilter;
+            }
+            
             mat.needsUpdate = true;
           }
         });

@@ -379,9 +379,9 @@ async function start() {
   introUI.id = 'intro-ui';
   introUI.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding-left: 8vw; pointer-events: none; z-index: 3000; transition: opacity 0.8s ease-out; perspective: 1000px;';
   introUI.innerHTML = `
-    <div class="hero-container" style="animation: float3D 6s ease-in-out infinite; transform-style: preserve-3d; transform: rotateY(12deg) rotateX(5deg);">
-      <h1 style="font-family: 'Poppins', 'Segoe UI', sans-serif; font-size: 6.5vw; font-weight: 900; margin: 0; line-height: 1.05; text-transform: uppercase; background: linear-gradient(135deg, #ffffff 0%, #63aaaaff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(3px 3px 0px rgba(40, 80, 150, 0.9)) drop-shadow(8px 8px 15px rgba(0,0,0,0.6)); letter-spacing: -2px;">Welcome to<br/>Ani Chan's World</h1>
-      <h2 style="font-family: 'Courier New', monospace; font-size: 1.4vw; color: #cbe0ff; margin-top: 15px; font-weight: 600; letter-spacing: 4px; text-transform: uppercase; text-shadow: 2px 2px 5px rgba(0,0,0,0.8);">A Open World HD-2D Website</h2>
+    <div class="hero-container" style="animation: floatVertical 4s ease-in-out infinite;">
+      <h1 style="font-family: 'Poppins', 'Segoe UI', sans-serif; font-size: 6.5vw; font-weight: 900; margin: 0; line-height: 1.05; text-transform: uppercase; background: linear-gradient(135deg, #ffffff 0%, #a5c9f3 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(3px 3px 0px rgba(40, 80, 150, 0.9)) drop-shadow(8px 8px 15px rgba(0,0,0,0.6)); letter-spacing: -2px;">Welcome to<br/>Ani Chan's World</h1>
+      <h2 style="font-family: 'Courier New', monospace; font-size: 1.4vw; color: #cbe0ff; margin-top: 15px; font-weight: 600; letter-spacing: 4px; text-transform: uppercase; text-shadow: 2px 2px 5px rgba(0,0,0,0.8);">Full-Stack & Systems Architecture</h2>
       <div style="margin-top: 50px; display: flex; align-items: center; gap: 15px; animation: pulseOpacity 2s infinite;">
         <div style="width: 26px; height: 42px; border: 2px solid #fff; border-radius: 20px; position: relative; box-shadow: 0 0 10px rgba(255,255,255,0.3);">
           <div style="width: 4px; height: 8px; background: #fff; border-radius: 2px; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); animation: scrollWheel 2s infinite cubic-bezier(0.15, 0.41, 0.69, 0.94);"></div>
@@ -389,10 +389,24 @@ async function start() {
         <span style="font-family: 'Segoe UI', sans-serif; color: #fff; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; font-size: 13px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">Scroll to Explore</span>
       </div>
     </div>
+    <div class="stats-widget" style="position: absolute; bottom: 10vh; right: 8vw; display: flex; gap: 3vw; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(8px); padding: 30px 45px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.4); animation: floatVertical 5s ease-in-out infinite reverse;">
+      <div style="text-align: center;">
+        <div style="font-family: 'Poppins', sans-serif; font-size: 3rem; font-weight: 800; color: #fff; text-shadow: 3px 3px 0px rgba(67, 136, 224, 0.9), 4px 4px 10px rgba(0,0,0,0.5); line-height: 1;">20+</div>
+        <div style="font-family: 'Courier New', monospace; font-size: 0.8rem; color: #cbe0ff; letter-spacing: 2px; text-transform: uppercase; font-weight: bold; margin-top: 8px;">Projects</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="font-family: 'Poppins', sans-serif; font-size: 3rem; font-weight: 800; color: #fff; text-shadow: 3px 3px 0px rgba(67, 136, 224, 0.9), 4px 4px 10px rgba(0,0,0,0.5); line-height: 1;">6+</div>
+        <div style="font-family: 'Courier New', monospace; font-size: 0.8rem; color: #cbe0ff; letter-spacing: 2px; text-transform: uppercase; font-weight: bold; margin-top: 8px;">Languages</div>
+      </div>
+      <div style="text-align: center;">
+        <div style="font-family: 'Poppins', sans-serif; font-size: 3rem; font-weight: 800; color: #fff; text-shadow: 3px 3px 0px rgba(67, 136, 224, 0.9), 4px 4px 10px rgba(0,0,0,0.5); line-height: 1;">15+</div>
+        <div style="font-family: 'Courier New', monospace; font-size: 0.8rem; color: #cbe0ff; letter-spacing: 2px; text-transform: uppercase; font-weight: bold; margin-top: 8px;">Technologies</div>
+      </div>
+    </div>
     <style>
-      @keyframes float3D {
-        0%, 100% { transform: translateY(0px) rotateY(12deg) rotateX(5deg); }
-        50% { transform: translateY(-20px) rotateY(8deg) rotateX(8deg); }
+      @keyframes floatVertical {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-15px); }
       }
       @keyframes pulseOpacity {
         0%, 100% { opacity: 0.6; }

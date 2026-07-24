@@ -355,18 +355,48 @@ async function start() {
   );
 
   // ── Player Sprite ─────────────────────────────────────────────────────────
-  const playerSprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: buildPlayerTexture(),
-      transparent: true,
-      alphaTest: 0.05,
-      sizeAttenuation: true,
-    }),
-  );
-  // Scale sprite to clamped dimensions
-  playerSprite.scale.set(clampedWidth, clampedHeight, 1);
-  // castShadow is intentionally NOT set — sprites break shadow maps in HD-2D style
-  scene.add(playerSprite);
+  // Load 3D character model
+  const characterGltf = await gltfLoader.loadAsync('/models/character-j.glb');
+  const characterModel = characterGltf.scene;
+
+  // Enable shadows on character meshes
+  characterModel.traverse((child) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    }
+  });
+
+  // Scale character to match village proportions (using clamped dimensions)
+  const characterScale = clampedHeight * 0.65;  // Scale proportional to dummy cube
+  characterModel.scale.setScalar(characterScale);
+
+  scene.add(characterModel);
+
+  // Setup animation mixer if animations exist
+  let mixer: THREE.AnimationMixer | null = null;
+  let idleAction: THREE.AnimationAction | null = null;
+  let walkAction: THREE.AnimationAction | null = null;
+
+  if (characterGltf.animations && characterGltf.animations.length > 0) {
+    mixer = new THREE.AnimationMixer(characterModel);
+    
+    // Find idle and walk animations (adjust names based on your GLB)
+    characterGltf.animations.forEach((clip) => {
+      const action = mixer!.clipAction(clip);
+      const name = clip.name.toLowerCase();
+      
+      if (name.includes('idle')) {
+        idleAction = action;
+        idleAction.play();  // Start with idle
+      } else if (name.includes('walk') || name.includes('run')) {
+        walkAction = action;
+      }
+    });
+
+    console.log('Character animations loaded:', characterGltf.animations.map(a => a.name));
+  }
 
   const shadowSprite = buildShadowSprite();
   // Scale shadow proportionally to character width
@@ -381,8 +411,8 @@ async function start() {
   const moveVec   = new THREE.Vector3();
   let yVelocity = -0.1;  // small negative to start grounded
 
-  // ── Initial sync: position sprites and camera at spawn point ─────────────
-  playerSprite.position.set(spawnPos.x, spawnPos.y + 0.1, spawnPos.z);
+  // ── Initial sync: position character model and camera at spawn point ──────
+  characterModel.position.set(spawnPos.x, spawnPos.y, spawnPos.z);
   shadowSprite.position.set(spawnPos.x, 0.02, spawnPos.z);
   
   // Position camera at isometric offset looking directly at spawn
@@ -403,13 +433,49 @@ async function start() {
     // Step physics simulation
     world.step();
 
+    // Update animation mixer
+    if (mixer) {
+      mixer.update(delta);
+    }
+
     // ── Input → Desired Movement ──────────────────────────────────────────
     moveVec.set(0, 0, 0);
     if (keys.w || keys.ArrowUp)    moveVec.addScaledVector(CAM_FORWARD,  1);
     if (keys.s || keys.ArrowDown)  moveVec.addScaledVector(CAM_FORWARD, -1);
     if (keys.d || keys.ArrowRight) moveVec.addScaledVector(CAM_RIGHT,    1);
     if (keys.a || keys.ArrowLeft)  moveVec.addScaledVector(CAM_RIGHT,   -1);
-    if (moveVec.lengthSq() > 0) moveVec.normalize();
+    
+    const isMoving = moveVec.lengthSq() > 0;
+    if (isMoving) moveVec.normalize();
+
+    // ── Character Animation State ──────────────────────────────────────────
+    if (mixer && idleAction && walkAction) {
+      if (isMoving) {
+        // Switch to walk animation
+        if (idleAction.isRunning()) {
+          idleAction.fadeOut(0.2);
+          walkAction.reset().fadeIn(0.2).play();
+        }
+      } else {
+        // Switch to idle animation
+        if (walkAction.isRunning()) {
+          walkAction.fadeOut(0.2);
+          idleAction.reset().fadeIn(0.2).play();
+        }
+      }
+    }
+
+    // ── Character Rotation ─────────────────────────────────────────────────
+    if (isMoving) {
+      // Calculate target angle based on movement direction
+      const targetAngle = Math.atan2(moveVec.x, moveVec.z);
+      // Smoothly interpolate rotation
+      characterModel.rotation.y = THREE.MathUtils.lerp(
+        characterModel.rotation.y,
+        targetAngle,
+        0.15  // rotation lerp factor
+      );
+    }
 
     // ── Gravity ────────────────────────────────────────────────────────────
     const isGrounded = characterController.computedGrounded();
@@ -440,9 +506,9 @@ async function start() {
       z: cur.z + corrected.z,
     });
 
-    // Sync visuals
+    // Sync character model to physics body position
     const pos = playerBody.translation();
-    playerSprite.position.set(pos.x, pos.y + 0.1, pos.z);
+    characterModel.position.set(pos.x, pos.y, pos.z);
     shadowSprite.position.set(pos.x, 0.02, pos.z);
 
     // Camera follow

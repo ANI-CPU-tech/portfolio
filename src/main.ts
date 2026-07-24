@@ -1,9 +1,5 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { EffectComposer }  from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass }      from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass }      from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GLTFLoader }      from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -18,9 +14,6 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setClearColor(0x0a0a0f);
-// Tone-mapping required for bloom to look correct
-renderer.toneMapping        = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
 
 // ─── Scene ───────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
@@ -30,21 +23,6 @@ scene.fog = new THREE.FogExp2(0x0a0a0f, 0.025);
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
 camera.position.copy(CAM_OFFSET);
 camera.lookAt(0, 0, 0);
-
-// ─── Post-processing composer ─────────────────────────────────────────────────
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-
-const bloomPass = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.6,   // strength
-  0.4,   // radius
-  0.2,   // threshold – only pixels brighter than this bloom
-);
-composer.addPass(bloomPass);
-
-// OutputPass applies tone-mapping & colour-space conversion as the final step
-composer.addPass(new OutputPass());
 
 // ─── Lighting ────────────────────────────────────────────────────────────────
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
@@ -76,8 +54,6 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  composer.setSize(window.innerWidth, window.innerHeight);
-  bloomPass.resolution.set(window.innerWidth, window.innerHeight);
 });
 
 // ─── WASD Input ──────────────────────────────────────────────────────────────
@@ -166,12 +142,23 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{ scene: THREE.
   const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
   const terrainScene = gltf.scene;
 
-  // Enable shadows on all meshes
+  // Enable shadows on all meshes and disable emissive materials
   terrainScene.traverse((node) => {
     if ((node as THREE.Mesh).isMesh) {
       const mesh = node as THREE.Mesh;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+
+      // Strip emissive glow from environment materials
+      if (mesh.material) {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((mat) => {
+          if (mat instanceof THREE.MeshStandardMaterial) {
+            mat.emissive.setHex(0x000000);
+            mat.emissiveIntensity = 0;
+          }
+        });
+      }
     }
   });
 
@@ -411,7 +398,7 @@ async function start() {
     camera.lookAt(pos.x, pos.y, pos.z);
 
     // Post-processed render (bloom → output)
-    composer.render();
+    renderer.render(scene, camera);
   }
 
   gameLoop();

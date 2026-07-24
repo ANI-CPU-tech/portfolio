@@ -374,28 +374,62 @@ async function start() {
 
   scene.add(characterModel);
 
-  // Setup animation mixer if animations exist
+  // ── Setup Animation System ─────────────────────────────────────────────────
   let mixer: THREE.AnimationMixer | null = null;
   let idleAction: THREE.AnimationAction | null = null;
   let walkAction: THREE.AnimationAction | null = null;
+  let activeAction: THREE.AnimationAction | null = null;
 
   if (characterGltf.animations && characterGltf.animations.length > 0) {
+    console.log('Loaded animation clips:', characterGltf.animations.map(a => a.name));
+    
     mixer = new THREE.AnimationMixer(characterModel);
     
-    // Find idle and walk animations (adjust names based on your GLB)
-    characterGltf.animations.forEach((clip) => {
-      const action = mixer!.clipAction(clip);
-      const name = clip.name.toLowerCase();
-      
-      if (name.includes('idle')) {
-        idleAction = action;
-        idleAction.play();  // Start with idle
-      } else if (name.includes('walk') || name.includes('run')) {
-        walkAction = action;
-      }
-    });
+    // Find idle and walk clips by name keywords
+    let idleClip: THREE.AnimationClip | null = null;
+    let walkClip: THREE.AnimationClip | null = null;
 
-    console.log('Character animations loaded:', characterGltf.animations.map(a => a.name));
+    for (const clip of characterGltf.animations) {
+      const name = clip.name.toLowerCase();
+      if (name.includes('idle') && !idleClip) {
+        idleClip = clip;
+        console.log('Found idle animation:', clip.name);
+      } else if ((name.includes('walk') || name.includes('run')) && !walkClip) {
+        walkClip = clip;
+        console.log('Found walk animation:', clip.name);
+      }
+    }
+
+    // Fallback to first two animations if keywords not found
+    if (!idleClip && characterGltf.animations.length > 0) {
+      idleClip = characterGltf.animations[0];
+      console.log('Using fallback idle animation:', idleClip.name);
+    }
+    if (!walkClip && characterGltf.animations.length > 1) {
+      walkClip = characterGltf.animations[1];
+      console.log('Using fallback walk animation:', walkClip.name);
+    }
+
+    // Create actions if clips were found
+    if (idleClip) {
+      idleAction = mixer.clipAction(idleClip);
+      idleAction.play();
+      activeAction = idleAction;
+    }
+    if (walkClip) {
+      walkAction = mixer.clipAction(walkClip);
+    }
+  }
+
+  // Helper function for smooth animation transitions
+  function switchAnimation(newAction: THREE.AnimationAction) {
+    if (activeAction !== newAction) {
+      if (activeAction) {
+        activeAction.fadeOut(0.2);
+      }
+      newAction.reset().fadeIn(0.2).play();
+      activeAction = newAction;
+    }
   }
 
   const shadowSprite = buildShadowSprite();
@@ -449,19 +483,11 @@ async function start() {
     if (isMoving) moveVec.normalize();
 
     // ── Character Animation State ──────────────────────────────────────────
-    if (mixer && idleAction && walkAction) {
+    if (idleAction && walkAction) {
       if (isMoving) {
-        // Switch to walk animation
-        if (idleAction.isRunning()) {
-          idleAction.fadeOut(0.2);
-          walkAction.reset().fadeIn(0.2).play();
-        }
+        switchAnimation(walkAction);
       } else {
-        // Switch to idle animation
-        if (walkAction.isRunning()) {
-          walkAction.fadeOut(0.2);
-          idleAction.reset().fadeIn(0.2).play();
-        }
+        switchAnimation(idleAction);
       }
     }
 

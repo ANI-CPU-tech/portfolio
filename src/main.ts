@@ -7,12 +7,8 @@ import { OutputPass }      from 'three/examples/jsm/postprocessing/OutputPass.js
 import { GLTFLoader }      from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const PLAYER_SPEED      = 3.5;    // walking pace for smaller character
 const CAM_OFFSET        = new THREE.Vector3(5, 5, 5);  // closer camera for smaller scale
 const CAM_LERP          = 0.08;
-const PLAYER_START_X    = 0;      // spawn in village center
-const PLAYER_START_Y    = 10;     // spawn elevated, let gravity settle onto terrain
-const PLAYER_START_Z    = 0;
 
 // ─── Renderer ────────────────────────────────────────────────────────────────
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -151,7 +147,7 @@ const gltfLoader = new GLTFLoader();
  * Load the medieval castle terrain level with trimesh physics.
  * Returns the loaded scene and creates a single static trimesh collider for terrain traversal.
  */
-async function loadMedievalTerrain(world: RAPIER.World): Promise<THREE.Group> {
+async function loadMedievalTerrain(world: RAPIER.World): Promise<{ scene: THREE.Group; dummyCube: THREE.Object3D | null }> {
   const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
   const terrainScene = gltf.scene;
 
@@ -165,6 +161,14 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<THREE.Group> {
   });
 
   scene.add(terrainScene);
+
+  // Find the dummy cube spawn/scale reference using fuzzy search
+  let dummyCube: THREE.Object3D | null = null;
+  terrainScene.traverse((child) => {
+    if (!dummyCube && child.name.toLowerCase().includes('dummy')) {
+      dummyCube = child;
+    }
+  });
 
   // ── Extract geometry for Rapier trimesh collider ──────────────────────────
   // Collect all vertices and indices from every mesh in the terrain
@@ -217,7 +221,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<THREE.Group> {
     world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return terrainScene;
+  return { scene: terrainScene, dummyCube };
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -236,15 +240,60 @@ async function start() {
   characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
   // ── Load medieval castle & village terrain ────────────────────────────────
-  await loadMedievalTerrain(world);
+  const { scene: terrainScene, dummyCube } = await loadMedievalTerrain(world);
+
+  // ── Extract spawn position and scale from Dummy_Cube ──────────────────────
+  let spawnPos: THREE.Vector3;
+  let clampedWidth: number;
+  let clampedHeight: number;
+  let PLAYER_SPEED: number;
+
+  if (dummyCube) {
+    // Found the dummy anchor!
+    console.log('Found dummy anchor:', dummyCube.name);
+
+    // Hide the dummy cube (it's just a spawn/scale reference)
+    dummyCube.visible = false;
+
+    // Get world-space bounding box and size
+    const box = new THREE.Box3().setFromObject(dummyCube);
+    const cubeSize = box.getSize(new THREE.Vector3());
+    spawnPos = new THREE.Vector3();
+    dummyCube.getWorldPosition(spawnPos);
+
+    // Offset spawn position by half the cube height so character spawns on top
+    spawnPos.y += cubeSize.y / 2;
+
+    // Clamp the measured dimensions to sane bounds
+    clampedWidth = Math.min(Math.max(cubeSize.x, 0.4), 2.5);
+    clampedHeight = Math.min(Math.max(cubeSize.y, 0.6), 3.0);
+
+    // Scale movement speed proportionally to character height
+    PLAYER_SPEED = clampedHeight * 3;
+  } else {
+    // Fallback: no dummy cube found
+    console.warn('Dummy_Cube anchor not found in GLB. Falling back to default spawn/scale.');
+    
+    spawnPos = new THREE.Vector3(0, 10, 0);
+    clampedWidth = 0.8;
+    clampedHeight = 1.2;
+    PLAYER_SPEED = 3.6;  // 1.2 * 3
+  }
+
+  // Calculate capsule collider dimensions from clamped scale
+  const capsuleRadius = clampedWidth / 2;
+  const capsuleHalfHeight = Math.max(0.05, (clampedHeight - clampedWidth) / 2);
 
   // ── Player Physics ────────────────────────────────────────────────────────
   const playerBodyDesc = RAPIER.RigidBodyDesc
     .kinematicPositionBased()
-    .setTranslation(PLAYER_START_X, PLAYER_START_Y, PLAYER_START_Z);
+    .setTranslation(spawnPos.x, spawnPos.y, spawnPos.z);
   const playerBody     = world.createRigidBody(playerBodyDesc);
-  // Smaller capsule: radius 0.12, halfHeight 0.12 → total height ~0.48 units
-  const playerCollider = world.createCollider(RAPIER.ColliderDesc.capsule(0.12, 0.12), playerBody);
+  // Capsule sized to match clamped dimensions
+  const playerCollider = world.createCollider(
+    RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius),
+    playerBody
+  );
 
   // ── Player Sprite ─────────────────────────────────────────────────────────
   const playerSprite = new THREE.Sprite(
@@ -255,31 +304,31 @@ async function start() {
       sizeAttenuation: true,
     }),
   );
-  // Scaled down to fit the smaller character (width 0.35, height 0.6)
-  playerSprite.scale.set(0.35, 0.6, 1);
+  // Scale sprite to clamped dimensions
+  playerSprite.scale.set(clampedWidth, clampedHeight, 1);
   // castShadow is intentionally NOT set — sprites break shadow maps in HD-2D style
   scene.add(playerSprite);
 
   const shadowSprite = buildShadowSprite();
-  // Scale shadow to match smaller character
-  shadowSprite.scale.set(0.4, 0.15, 1);
+  // Scale shadow proportionally to character width
+  shadowSprite.scale.set(clampedWidth * 1.2, clampedWidth * 0.4, 1);
   scene.add(shadowSprite);
 
   // ── Movement ──────────────────────────────────────────────────────────────
   const CAM_FORWARD = new THREE.Vector3(-1, 0, -1).normalize();
   const CAM_RIGHT   = new THREE.Vector3( 1, 0, -1).normalize();
+  const CAMERA_OFFSET = new THREE.Vector3(15, 15, 15);  // isometric offset from player
 
   const moveVec   = new THREE.Vector3();
 
   // ── Initial sync: position sprites and camera at spawn point ─────────────
-  playerSprite.position.set(PLAYER_START_X, PLAYER_START_Y + 0.1, PLAYER_START_Z);
-  shadowSprite.position.set(PLAYER_START_X, 0.02, PLAYER_START_Z);
-  camera.position.set(
-    PLAYER_START_X + CAM_OFFSET.x,
-    CAM_OFFSET.y,
-    PLAYER_START_Z + CAM_OFFSET.z
-  );
-  camera.lookAt(PLAYER_START_X, 0, PLAYER_START_Z);
+  playerSprite.position.set(spawnPos.x, spawnPos.y + 0.1, spawnPos.z);
+  shadowSprite.position.set(spawnPos.x, 0.02, spawnPos.z);
+  
+  // Position camera at isometric offset looking directly at spawn
+  const cameraOffset = spawnPos.clone().add(new THREE.Vector3(15, 15, 15));
+  camera.position.copy(cameraOffset);
+  camera.lookAt(spawnPos);
 
   let lastTime = performance.now();
 
@@ -324,11 +373,13 @@ async function start() {
     shadowSprite.position.set(pos.x, 0.02, pos.z);
 
     // Camera follow
-    camera.position.lerp(
-      new THREE.Vector3(pos.x + CAM_OFFSET.x, CAM_OFFSET.y, pos.z + CAM_OFFSET.z),
-      CAM_LERP
+    const targetCamPos = new THREE.Vector3(
+      pos.x + CAMERA_OFFSET.x,
+      CAMERA_OFFSET.y,
+      pos.z + CAMERA_OFFSET.z
     );
-    camera.lookAt(pos.x, 0, pos.z);
+    camera.position.lerp(targetCamPos, CAM_LERP);
+    camera.lookAt(pos.x, pos.y, pos.z);
 
     // Post-processed render (bloom → output)
     composer.render();

@@ -380,7 +380,7 @@ async function start() {
   introUI.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding-left: 8vw; pointer-events: none; z-index: 3000; transition: opacity 0.8s ease-out; perspective: 1000px;';
   introUI.innerHTML = `
     <div class="hero-container" style="animation: float3D 6s ease-in-out infinite; transform-style: preserve-3d; transform: rotateY(12deg) rotateX(5deg);">
-      <h1 style="font-family: 'Poppins', 'Segoe UI', sans-serif; font-size: 6.5vw; font-weight: 900; margin: 0; line-height: 1.05; text-transform: uppercase; background: linear-gradient(135deg, #ffffff 0%, #a5c9f3 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(3px 3px 0px rgba(40, 80, 150, 0.9)) drop-shadow(8px 8px 15px rgba(0,0,0,0.6)); letter-spacing: -2px;">Welcome to<br/>Ani Chan's World</h1>
+      <h1 style="font-family: 'Poppins', 'Segoe UI', sans-serif; font-size: 6.5vw; font-weight: 900; margin: 0; line-height: 1.05; text-transform: uppercase; background: linear-gradient(135deg, #ffffff 0%, #63aaaaff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(3px 3px 0px rgba(40, 80, 150, 0.9)) drop-shadow(8px 8px 15px rgba(0,0,0,0.6)); letter-spacing: -2px;">Welcome to<br/>Ani Chan's World</h1>
       <h2 style="font-family: 'Courier New', monospace; font-size: 1.4vw; color: #cbe0ff; margin-top: 15px; font-weight: 600; letter-spacing: 4px; text-transform: uppercase; text-shadow: 2px 2px 5px rgba(0,0,0,0.8);">A Open World HD-2D Website</h2>
       <div style="margin-top: 50px; display: flex; align-items: center; gap: 15px; animation: pulseOpacity 2s infinite;">
         <div style="width: 26px; height: 42px; border: 2px solid #fff; border-radius: 20px; position: relative; box-shadow: 0 0 10px rgba(255,255,255,0.3);">
@@ -420,12 +420,16 @@ async function start() {
   bgMusic.volume = 0.2; // Keep it low so it's pleasant background noise
   let isMusicPlaying = false;
 
-  // 2. Create the Toggle Button
+  // 2. Define Clean SVG Icons
+  const svgVolumeOn = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+  const svgVolumeOff = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="1" x2="1" y2="23"></line><line x1="15.54" y1="8.46" x2="18.9" y2="11.8"></line></svg>`;
+
+  // 3. Create the Toggle Button
   const audioBtn = document.createElement('button');
   audioBtn.id = 'audio-toggle-btn';
-  audioBtn.innerHTML = '🔇'; // Starts muted due to browser autoplay rules
+  audioBtn.innerHTML = svgVolumeOff; // Starts muted
   // Sleek, glassmorphic styling to match the modern Hero UI
-  audioBtn.style.cssText = 'position: fixed; top: 30px; right: 40px; z-index: 4000; background: rgba(0, 0, 0, 0.4); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 50%; width: 55px; height: 55px; font-size: 24px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.3s ease; backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); color: white; padding-left: 2px;';
+  audioBtn.style.cssText = 'position: fixed; top: 30px; right: 40px; z-index: 4000; background: rgba(0, 0, 0, 0.4); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 50%; width: 55px; height: 55px; font-size: 24px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.3s ease; backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); color: white; padding: 0;';
 
   // Hover animations
   audioBtn.onmouseover = () => {
@@ -439,19 +443,50 @@ async function start() {
 
   document.body.appendChild(audioBtn);
 
-  // 3. Toggle Logic
+  // 4. Toggle Logic
   audioBtn.addEventListener('click', () => {
     if (isMusicPlaying) {
       bgMusic.pause();
-      audioBtn.innerHTML = '🔇';
+      audioBtn.innerHTML = svgVolumeOff;
       audioBtn.style.background = 'rgba(0, 0, 0, 0.4)';
     } else {
       bgMusic.play().catch(e => console.warn('Audio play failed:', e));
-      audioBtn.innerHTML = '🔊';
+      audioBtn.innerHTML = svgVolumeOn;
       audioBtn.style.background = 'rgba(67, 136, 224, 0.4)'; // Glows blue when active
     }
     isMusicPlaying = !isMusicPlaying;
   });
+
+  // 5. Force Autoplay Attempt with Interaction Fallback
+  const startAudioOnInteract = () => {
+    if (!isMusicPlaying) {
+      bgMusic.play().then(() => {
+        isMusicPlaying = true;
+        audioBtn.innerHTML = svgVolumeOn;
+        audioBtn.style.background = 'rgba(67, 136, 224, 0.4)';
+      }).catch(err => console.log('Audio play failed on interact:', err));
+    }
+  };
+
+  const attemptAutoplay = () => {
+    bgMusic.play().then(() => {
+      // Browser allowed it!
+      isMusicPlaying = true;
+      audioBtn.innerHTML = svgVolumeOn;
+      audioBtn.style.background = 'rgba(67, 136, 224, 0.4)';
+    }).catch((e) => {
+      // Browser blocked it (expected behavior). Set up the scroll/click fallback.
+      console.warn('⚠️ Browser blocked immediate audio autoplay. Waiting for user scroll/click to start music.');
+      isMusicPlaying = false;
+      audioBtn.innerHTML = svgVolumeOff;
+      audioBtn.style.background = 'rgba(0, 0, 0, 0.4)';
+      window.addEventListener('wheel', startAudioOnInteract, { once: true });
+      window.addEventListener('click', startAudioOnInteract, { once: true });
+    });
+  };
+
+  // Try to play immediately as soon as the audio object is ready
+  bgMusic.addEventListener('canplaythrough', attemptAutoplay, { once: true });
 
   // ── Configure Sun Light from Dummy_Sphere ─────────────────────────────────
   if (dummySphere) {

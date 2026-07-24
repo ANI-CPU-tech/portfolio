@@ -129,6 +129,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   scene: THREE.Group; 
   dummyCube: THREE.Object3D | null;
   dummySphere: THREE.Object3D | null;
+  aboutStatue: THREE.Object3D | null;
 }> {
   const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
   const terrainScene = gltf.scene;
@@ -168,6 +169,14 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   terrainScene.traverse((child) => {
     if (!dummySphere && child.name.toLowerCase().includes('dummy_sphere')) {
       dummySphere = child;
+    }
+  });
+
+  // Find the about-statue interaction point
+  let aboutStatue: THREE.Object3D | null = null;
+  terrainScene.traverse((child) => {
+    if (!aboutStatue && (child.name.toLowerCase().includes('about-statue') || child.name.toLowerCase().includes('about_statue'))) {
+      aboutStatue = child;
     }
   });
 
@@ -222,7 +231,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return { scene: terrainScene, dummyCube, dummySphere };
+  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue };
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -241,7 +250,16 @@ async function start() {
   characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
   // ── Load medieval castle & village terrain ────────────────────────────────
-  const { scene: terrainScene, dummyCube, dummySphere } = await loadMedievalTerrain(world);
+  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue } = await loadMedievalTerrain(world);
+
+  // ── Get About Statue Position ──────────────────────────────────────────────
+  const aboutStatuePos = new THREE.Vector3();
+  if (aboutStatue) {
+    aboutStatue.getWorldPosition(aboutStatuePos);
+    console.log('Found about-statue at:', aboutStatuePos);
+  } else {
+    console.warn('about-statue not found in GLB. Interaction will be disabled.');
+  }
 
   // ── Configure Sun Light from Dummy_Sphere ─────────────────────────────────
   if (dummySphere) {
@@ -473,6 +491,25 @@ async function start() {
 
   let lastTime = performance.now();
 
+  // ── Interaction State ──────────────────────────────────────────────────────
+  let canInteractAbout = false;
+
+  // Create interaction prompt UI
+  const interactPrompt = document.createElement('div');
+  interactPrompt.id = 'interact-prompt';
+  interactPrompt.innerText = 'Press [E] to Interact';
+  interactPrompt.style.cssText = 'position: absolute; bottom: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: white; padding: 10px 20px; border-radius: 8px; font-family: sans-serif; font-weight: bold; display: none; pointer-events: none; z-index: 1000; transition: opacity 0.2s;';
+  document.body.appendChild(interactPrompt);
+
+  // Handle E key interaction
+  window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'e' && canInteractAbout) {
+      // Placeholder for the actual About Me modal
+      alert('Welcome to my Portfolio! About Me section triggered.');
+      // You can replace this later with logic to show a custom HTML modal.
+    }
+  });
+
   // ── Game Loop ─────────────────────────────────────────────────────────────
   function gameLoop() {
     requestAnimationFrame(gameLoop);
@@ -553,6 +590,24 @@ async function start() {
     const pos = playerBody.translation();
     characterModel.position.set(pos.x, pos.y + characterYOffset, pos.z);
     shadowSprite.position.set(pos.x, 0.02, pos.z);
+
+    // ── Proximity Detection for About Statue ───────────────────────────────
+    if (aboutStatue) {
+      const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+      const distance = playerPos.distanceTo(aboutStatuePos);
+      
+      if (distance < 4.0) {  // Interaction radius
+        if (!canInteractAbout) {
+          interactPrompt.style.display = 'block';
+          canInteractAbout = true;
+        }
+      } else {
+        if (canInteractAbout) {
+          interactPrompt.style.display = 'none';
+          canInteractAbout = false;
+        }
+      }
+    }
 
     // Camera follow
     const targetCamPos = new THREE.Vector3(

@@ -28,25 +28,12 @@ camera.lookAt(0, 0, 0);
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
 scene.add(ambientLight);
 
-// Warm fill from the opposite side for softer shadows on pedestals
+// Warm fill light from opposite side for softer shadows
 const fillLight = new THREE.DirectionalLight(0xffd0a0, 0.25);
 fillLight.position.set(-10, 8, -10);
 scene.add(fillLight);
 
-// Key light – wide frustum to cover the bigger floor + cast crisp pedestal shadows
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
-dirLight.position.set(15, 28, 15);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.width  = 4096;
-dirLight.shadow.mapSize.height = 4096;
-dirLight.shadow.camera.near   = 0.5;
-dirLight.shadow.camera.far    = 120;
-dirLight.shadow.camera.left   = -30;
-dirLight.shadow.camera.right  =  30;
-dirLight.shadow.camera.top    =  30;
-dirLight.shadow.camera.bottom = -30;
-dirLight.shadow.bias          = -0.0005;
-scene.add(dirLight);
+// Main sun light will be created dynamically from Dummy_Sphere position
 
 // ─── Resize ──────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
@@ -138,7 +125,11 @@ const gltfLoader = new GLTFLoader();
  * Load the medieval castle terrain level with trimesh physics.
  * Returns the loaded scene and creates a single static trimesh collider for terrain traversal.
  */
-async function loadMedievalTerrain(world: RAPIER.World): Promise<{ scene: THREE.Group; dummyCube: THREE.Object3D | null }> {
+async function loadMedievalTerrain(world: RAPIER.World): Promise<{ 
+  scene: THREE.Group; 
+  dummyCube: THREE.Object3D | null;
+  dummySphere: THREE.Object3D | null;
+}> {
   const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
   const terrainScene = gltf.scene;
 
@@ -167,8 +158,16 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{ scene: THREE.
   // Find the dummy cube spawn/scale reference using fuzzy search
   let dummyCube: THREE.Object3D | null = null;
   terrainScene.traverse((child) => {
-    if (!dummyCube && child.name.toLowerCase().includes('dummy')) {
+    if (!dummyCube && child.name.toLowerCase().includes('dummy') && !child.name.toLowerCase().includes('sphere')) {
       dummyCube = child;
+    }
+  });
+
+  // Find the dummy sphere sun position reference using fuzzy search
+  let dummySphere: THREE.Object3D | null = null;
+  terrainScene.traverse((child) => {
+    if (!dummySphere && child.name.toLowerCase().includes('dummy_sphere')) {
+      dummySphere = child;
     }
   });
 
@@ -223,7 +222,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{ scene: THREE.
     world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return { scene: terrainScene, dummyCube };
+  return { scene: terrainScene, dummyCube, dummySphere };
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -242,7 +241,65 @@ async function start() {
   characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
   // ── Load medieval castle & village terrain ────────────────────────────────
-  const { scene: terrainScene, dummyCube } = await loadMedievalTerrain(world);
+  const { scene: terrainScene, dummyCube, dummySphere } = await loadMedievalTerrain(world);
+
+  // ── Configure Sun Light from Dummy_Sphere ─────────────────────────────────
+  if (dummySphere) {
+    console.log('Found sun position anchor:', dummySphere.name);
+
+    // Hide the placeholder sphere
+    dummySphere.visible = false;
+
+    // Get world position of the sphere
+    const sunPos = new THREE.Vector3();
+    dummySphere.getWorldPosition(sunPos);
+
+    // Create directional sun light with warm color
+    const sunLight = new THREE.DirectionalLight(0xfffaed, 2.5);
+    sunLight.position.copy(sunPos);
+    
+    // Target the center of the village
+    sunLight.target.position.set(0, 0, 0);
+    scene.add(sunLight.target);
+
+    // Enable shadows with island-wide coverage
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    
+    // Large frustum to cover entire island
+    sunLight.shadow.camera.left = -60;
+    sunLight.shadow.camera.right = 60;
+    sunLight.shadow.camera.top = 60;
+    sunLight.shadow.camera.bottom = -60;
+    sunLight.shadow.camera.near = 0.5;
+    sunLight.shadow.camera.far = 200;
+    sunLight.shadow.bias = -0.0005;
+
+    scene.add(sunLight);
+    console.log('Sun light positioned at:', sunPos);
+  } else {
+    console.warn('Dummy_Sphere not found. Using default sun light configuration.');
+    
+    // Fallback sun light
+    const sunLight = new THREE.DirectionalLight(0xfffaed, 2.5);
+    sunLight.position.set(15, 28, 15);
+    sunLight.target.position.set(0, 0, 0);
+    scene.add(sunLight.target);
+    
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.left = -60;
+    sunLight.shadow.camera.right = 60;
+    sunLight.shadow.camera.top = 60;
+    sunLight.shadow.camera.bottom = -60;
+    sunLight.shadow.camera.near = 0.5;
+    sunLight.shadow.camera.far = 200;
+    sunLight.shadow.bias = -0.0005;
+    
+    scene.add(sunLight);
+  }
 
   // ── Extract spawn position and scale from Dummy_Cube ──────────────────────
   let spawnPos: THREE.Vector3;

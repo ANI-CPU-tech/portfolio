@@ -120,6 +120,7 @@ function buildShadowSprite(): THREE.Sprite {
 
 // ─── GLTF loader (singleton) ──────────────────────────────────────────────────
 const gltfLoader = new GLTFLoader();
+const textureLoader = new THREE.TextureLoader();
 
 /**
  * Load the medieval castle terrain level with trimesh physics.
@@ -305,7 +306,6 @@ async function start() {
   let spawnPos: THREE.Vector3;
   let clampedWidth: number;
   let clampedHeight: number;
-  let PLAYER_SPEED: number;
 
   if (dummyCube) {
     // Found the dummy anchor!
@@ -326,9 +326,6 @@ async function start() {
     // Clamp the measured dimensions to sane bounds
     clampedWidth = Math.min(Math.max(cubeSize.x, 0.4), 2.5);
     clampedHeight = Math.min(Math.max(cubeSize.y, 0.6), 3.0);
-
-    // Scale movement speed proportionally to character height
-    PLAYER_SPEED = clampedHeight * 3;
   } else {
     // Fallback: no dummy cube found
     console.warn('Dummy_Cube anchor not found in GLB. Falling back to default spawn/scale.');
@@ -336,12 +333,15 @@ async function start() {
     spawnPos = new THREE.Vector3(0, 13, 0);  // elevated spawn
     clampedWidth = 0.8;
     clampedHeight = 1.2;
-    PLAYER_SPEED = 3.6;  // 1.2 * 3
   }
 
-  // Calculate capsule collider dimensions from clamped scale
-  const capsuleRadius = clampedWidth / 2;
-  const capsuleHalfHeight = Math.max(0.05, (clampedHeight - clampedWidth) / 2);
+  // Calculate capsule collider dimensions - doubled to match larger character (2x previous size)
+  const capsuleRadius = 0.3;      // 2x previous 0.15
+  const capsuleHalfHeight = 0.5;  // 2x previous 0.25
+  const PLAYER_SPEED = 4.5;       // Faster speed for larger stride
+
+  // Visual offset so character feet sit at bottom of capsule
+  const characterYOffset = -(capsuleHalfHeight + capsuleRadius);  // = -0.8
 
   // ── Player Physics ────────────────────────────────────────────────────────
   const playerBodyDesc = RAPIER.RigidBodyDesc
@@ -355,22 +355,40 @@ async function start() {
   );
 
   // ── Player Sprite ─────────────────────────────────────────────────────────
+  // Load pixel-art character texture
+  const charTexture = textureLoader.load('/models/texture-j.png');
+  charTexture.flipY = false;  // CRITICAL: GLTF UVs require flipY = false
+  charTexture.magFilter = THREE.NearestFilter;  // Crisp pixel rendering
+  charTexture.minFilter = THREE.NearestFilter;  // No blur on minification
+  charTexture.colorSpace = THREE.SRGBColorSpace;  // Correct color interpretation
+
   // Load 3D character model
   const characterGltf = await gltfLoader.loadAsync('/models/character-j.glb');
   const characterModel = characterGltf.scene;
 
-  // Enable shadows on character meshes
+  // Apply texture and enable shadows on character meshes
   characterModel.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+
+      // Apply crisp pixel texture with white base color
+      if (mesh.material) {
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.forEach((mat) => {
+          if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
+            mat.color = new THREE.Color(0xffffff);  // White base to avoid tinting
+            mat.map = charTexture;
+            mat.needsUpdate = true;
+          }
+        });
+      }
     }
   });
 
-  // Scale character to match village proportions (using clamped dimensions)
-  const characterScale = clampedHeight * 0.65;  // Scale proportional to dummy cube
-  characterModel.scale.setScalar(characterScale);
+  // Scale character up (2x larger than previous 0.35 scale)
+  characterModel.scale.set(0.7, 0.7, 0.7);
 
   scene.add(characterModel);
 
@@ -433,8 +451,8 @@ async function start() {
   }
 
   const shadowSprite = buildShadowSprite();
-  // Scale shadow proportionally to character width
-  shadowSprite.scale.set(clampedWidth * 1.2, clampedWidth * 0.4, 1);
+  // Scale shadow proportionally to larger character capsule radius
+  shadowSprite.scale.set(capsuleRadius * 3, capsuleRadius * 1.2, 1);
   scene.add(shadowSprite);
 
   // ── Movement ──────────────────────────────────────────────────────────────
@@ -532,9 +550,9 @@ async function start() {
       z: cur.z + corrected.z,
     });
 
-    // Sync character model to physics body position
+    // Sync character model to physics body position with Y-offset for feet placement
     const pos = playerBody.translation();
-    characterModel.position.set(pos.x, pos.y, pos.z);
+    characterModel.position.set(pos.x, pos.y + characterYOffset, pos.z);
     shadowSprite.position.set(pos.x, 0.02, pos.z);
 
     // Camera follow

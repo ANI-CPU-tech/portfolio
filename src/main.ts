@@ -215,6 +215,14 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   terrainScene.traverse((node) => {
     if ((node as THREE.Mesh).isMesh) {
       const mesh = node as THREE.Mesh;
+      
+      // Exclude dummy anchor objects from physics generation
+      if (mesh.name.toLowerCase().includes('dummy')) {
+        // It's an anchor point. Make it invisible and DO NOT create a physics collider for it.
+        mesh.visible = false;
+        return; // Skip the rest of the loop for this specific child
+      }
+      
       const geometry = mesh.geometry;
 
       // Apply world matrix to get vertices in world space

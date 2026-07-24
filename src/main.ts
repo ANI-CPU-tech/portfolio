@@ -29,10 +29,10 @@ document.body.appendChild(labelRenderer.domElement);
 
 // ─── Scene ───────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x0a0a0f, 0.025);
+scene.fog = new THREE.Fog(0x0a0a0f, 10, 600);  // Start with far fog for intro reveal
 
 // ─── Camera ──────────────────────────────────────────────────────────────────
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);  // Increased far plane
 camera.position.copy(CAM_OFFSET);
 camera.lookAt(0, 0, 0);
 
@@ -357,22 +357,18 @@ async function start() {
   // ── Setup Intro UI Overlay ─────────────────────────────────────────────────
   const introUI = document.createElement('div');
   introUI.id = 'intro-ui';
-  introUI.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: none; z-index: 3000; text-align: center; transition: opacity 0.1s;';
+  introUI.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; justify-content: flex-start; align-items: flex-start; padding: 6vw 8vw; pointer-events: none; z-index: 3000; transition: opacity 0.1s;';
   introUI.innerHTML = `
-    <h1 style="font-family: 'Impact', sans-serif; font-size: 6vw; color: #4388e0; -webkit-text-stroke: 2px #ffffff; text-transform: uppercase; margin: 0; letter-spacing: 2px; text-shadow: 5px 5px 0px #000;">WELCOME TO ANI CHAN'S WORLD</h1>
-    <p style="font-family: sans-serif; font-size: 24px; color: #ffffff; margin-top: 20px; font-weight: bold; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 30px; animation: bounce 2s infinite;">↓ Scroll to Enter ↓</p>
-    <style>
-      @keyframes bounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(10px); }
-      }
-    </style>
+    <h1 style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 5vw; font-weight: 900; color: #4a90e2; text-transform: uppercase; margin: 0; letter-spacing: -2px; line-height: 1.05; max-width: 45vw; text-shadow: 3px 3px 15px rgba(0,0,0,0.9), 0px 0px 4px rgba(0,0,0,0.5);">Welcome to<br/>Ani Chan's World</h1>
   `;
   document.body.appendChild(introUI);
 
   // ── Intro State Variables ──────────────────────────────────────────────────
   let isIntroActive = true;
   let introScrollProgress = 0; // Goes from 0.0 to 1.0
+  // This points the camera roughly towards the center of the village/castle
+  const scenicTarget = new THREE.Vector3(-20, 10, -20);
+  const currentLookAt = new THREE.Vector3();
 
   // ── Configure Sun Light from Dummy_Sphere ─────────────────────────────────
   if (dummySphere) {
@@ -775,11 +771,23 @@ async function start() {
     const targetLookAt = new THREE.Vector3(pos.x, pos.y, pos.z);
     
     if (isIntroActive) {
-      // Interpolate from DummyCone to the normal gameplay camera position based on scroll
+      // Dynamic fog distance during intro
+      if (scene.fog && scene.fog instanceof THREE.Fog) {
+        const introFogFar = 600;  // Pushed way out to reveal the map
+        const gameplayFogFar = 120;  // Normal fog distance for gameplay
+        scene.fog.far = THREE.MathUtils.lerp(introFogFar, gameplayFogFar, introScrollProgress);
+      }
+      
+      // Pan from the scenic landscape view down to the player's character
+      currentLookAt.lerpVectors(scenicTarget, targetLookAt, introScrollProgress);
       camera.position.lerpVectors(introCameraStartPos, targetCamPos, introScrollProgress);
-      // Keep looking at the player so the camera naturally tilts down as it flies in
-      camera.lookAt(targetLookAt);
+      camera.lookAt(currentLookAt);
     } else {
+      // Ensure fog is at gameplay distance
+      if (scene.fog && scene.fog instanceof THREE.Fog) {
+        scene.fog.far = 120;
+      }
+      
       // Normal gameplay camera logic (smooth follow)
       camera.position.lerp(targetCamPos, CAM_LERP);
       camera.lookAt(targetLookAt);

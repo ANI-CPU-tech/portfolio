@@ -377,9 +377,32 @@ async function start() {
   // ── Setup Intro UI Overlay ─────────────────────────────────────────────────
   const introUI = document.createElement('div');
   introUI.id = 'intro-ui';
-  introUI.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; justify-content: flex-start; align-items: flex-start; padding: 6vw 8vw; pointer-events: none; z-index: 3000; transition: opacity 0.1s;';
+  introUI.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding-left: 8vw; pointer-events: none; z-index: 3000; transition: opacity 0.8s ease-out; perspective: 1000px;';
   introUI.innerHTML = `
-    <h1 style="font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 5vw; font-weight: 900; color: #4a90e2; text-transform: uppercase; margin: 0; letter-spacing: -2px; line-height: 1.05; max-width: 45vw; text-shadow: 3px 3px 15px rgba(0,0,0,0.9), 0px 0px 4px rgba(0,0,0,0.5);">Welcome to<br/>Ani Chan's World</h1>
+    <div class="hero-container" style="animation: float3D 6s ease-in-out infinite; transform-style: preserve-3d; transform: rotateY(12deg) rotateX(5deg);">
+      <h1 style="font-family: 'Poppins', 'Segoe UI', sans-serif; font-size: 6.5vw; font-weight: 900; margin: 0; line-height: 1.05; text-transform: uppercase; background: linear-gradient(135deg, #ffffff 0%, #a5c9f3 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(3px 3px 0px rgba(40, 80, 150, 0.9)) drop-shadow(8px 8px 15px rgba(0,0,0,0.6)); letter-spacing: -2px;">Welcome to<br/>Ani Chan's World</h1>
+      <h2 style="font-family: 'Courier New', monospace; font-size: 1.4vw; color: #cbe0ff; margin-top: 15px; font-weight: 600; letter-spacing: 4px; text-transform: uppercase; text-shadow: 2px 2px 5px rgba(0,0,0,0.8);">A Open World HD-2D Website</h2>
+      <div style="margin-top: 50px; display: flex; align-items: center; gap: 15px; animation: pulseOpacity 2s infinite;">
+        <div style="width: 26px; height: 42px; border: 2px solid #fff; border-radius: 20px; position: relative; box-shadow: 0 0 10px rgba(255,255,255,0.3);">
+          <div style="width: 4px; height: 8px; background: #fff; border-radius: 2px; position: absolute; top: 6px; left: 50%; transform: translateX(-50%); animation: scrollWheel 2s infinite cubic-bezier(0.15, 0.41, 0.69, 0.94);"></div>
+        </div>
+        <span style="font-family: 'Segoe UI', sans-serif; color: #fff; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; font-size: 13px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);">Scroll to Explore</span>
+      </div>
+    </div>
+    <style>
+      @keyframes float3D {
+        0%, 100% { transform: translateY(0px) rotateY(12deg) rotateX(5deg); }
+        50% { transform: translateY(-20px) rotateY(8deg) rotateX(8deg); }
+      }
+      @keyframes pulseOpacity {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+      }
+      @keyframes scrollWheel {
+        0% { top: 6px; opacity: 1; }
+        100% { top: 24px; opacity: 0; }
+      }
+    </style>
   `;
   document.body.appendChild(introUI);
 

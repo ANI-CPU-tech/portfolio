@@ -31,6 +31,26 @@ document.body.appendChild(labelRenderer.domElement);
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x0a0a0f, 10, 600);  // Start with far fog for intro reveal
 
+// ─── Skydome ─────────────────────────────────────────────────────────────────
+let skyDome: THREE.Mesh | null = null;
+const textureLoader = new THREE.TextureLoader();
+console.log('Attempting to load Skydome texture...');
+textureLoader.load(
+  '/sky.jpg',
+  (texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const skyGeo = new THREE.SphereGeometry(1500, 32, 16);
+    const skyMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, fog: false });
+    skyDome = new THREE.Mesh(skyGeo, skyMat);
+    scene.add(skyDome);
+    console.log('✅ Skydome loaded successfully!');
+  },
+  undefined,
+  (error) => {
+    console.error("❌ FAILED to load sky.jpg. Check if the file is in the 'public' folder and named exactly 'sky.jpg'.", error);
+  }
+);
+
 // ─── Camera ──────────────────────────────────────────────────────────────────
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);  // Increased far plane
 camera.position.copy(CAM_OFFSET);
@@ -651,6 +671,11 @@ async function start() {
     // Update animation mixer
     if (mixer) {
       mixer.update(delta);
+    }
+
+    // Rotate skydome for moving clouds effect
+    if (typeof skyDome !== 'undefined' && skyDome !== null) {
+      skyDome.rotation.y += 0.0003; // Adjust this number to make clouds move faster/slower
     }
 
     // ── Input → Desired Movement ──────────────────────────────────────────

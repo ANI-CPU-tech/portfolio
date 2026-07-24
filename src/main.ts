@@ -413,6 +413,46 @@ async function start() {
   const scenicTarget = new THREE.Vector3(-20, 10, -20);
   const currentLookAt = new THREE.Vector3();
 
+  // ── Setup Background Music Toggle ───────────────────────────────────────────
+  // 1. Setup Audio Object
+  const bgMusic = new Audio('/bg-music.mp3');
+  bgMusic.loop = true;
+  bgMusic.volume = 0.2; // Keep it low so it's pleasant background noise
+  let isMusicPlaying = false;
+
+  // 2. Create the Toggle Button
+  const audioBtn = document.createElement('button');
+  audioBtn.id = 'audio-toggle-btn';
+  audioBtn.innerHTML = '🔇'; // Starts muted due to browser autoplay rules
+  // Sleek, glassmorphic styling to match the modern Hero UI
+  audioBtn.style.cssText = 'position: fixed; top: 30px; right: 40px; z-index: 4000; background: rgba(0, 0, 0, 0.4); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 50%; width: 55px; height: 55px; font-size: 24px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: all 0.3s ease; backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); color: white; padding-left: 2px;';
+
+  // Hover animations
+  audioBtn.onmouseover = () => {
+    audioBtn.style.transform = 'scale(1.1)';
+    audioBtn.style.border = '2px solid rgba(255, 255, 255, 0.8)';
+  };
+  audioBtn.onmouseout = () => {
+    audioBtn.style.transform = 'scale(1)';
+    audioBtn.style.border = '2px solid rgba(255, 255, 255, 0.2)';
+  };
+
+  document.body.appendChild(audioBtn);
+
+  // 3. Toggle Logic
+  audioBtn.addEventListener('click', () => {
+    if (isMusicPlaying) {
+      bgMusic.pause();
+      audioBtn.innerHTML = '🔇';
+      audioBtn.style.background = 'rgba(0, 0, 0, 0.4)';
+    } else {
+      bgMusic.play().catch(e => console.warn('Audio play failed:', e));
+      audioBtn.innerHTML = '🔊';
+      audioBtn.style.background = 'rgba(67, 136, 224, 0.4)'; // Glows blue when active
+    }
+    isMusicPlaying = !isMusicPlaying;
+  });
+
   // ── Configure Sun Light from Dummy_Sphere ─────────────────────────────────
   if (dummySphere) {
     console.log('Found sun position anchor:', dummySphere.name);

@@ -329,81 +329,89 @@ async function start() {
       left: 0;
       width: 100vw;
       height: 100vh;
-      background: rgba(0, 0, 0, 0.7);
+      background: transparent;
       display: none;
       justify-content: center;
       align-items: center;
       z-index: 2000;
-      backdrop-filter: blur(5px);
+      pointer-events: none;
     }
     .about-modal {
       background: #1a1a1a;
-      color: #ffffff;
-      border: 4px solid #ffffff;
-      border-radius: 8px;
-      box-shadow: 10px 10px 0px rgba(0,0,0,0.8);
-      width: 90%;
-      max-width: 650px;
+      color: #f0f0f0;
+      border: 6px solid #ffffff;
+      border-radius: 12px;
+      box-shadow: 15px 15px 0px rgba(0,0,0,0.9);
+      width: 95%;
+      max-width: 1050px;
+      height: auto;
+      max-height: 85vh;
       padding: 40px;
       position: relative;
-      font-family: sans-serif;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       display: flex;
-      gap: 30px;
+      gap: 50px;
       align-items: center;
+      pointer-events: auto;
+      overflow-y: auto;
     }
     .about-close {
       position: absolute;
-      top: -20px;
-      right: -20px;
+      top: 20px;
+      right: 20px;
       background: #ffffff;
       color: #1a1a1a;
-      border: 4px solid #1a1a1a;
-      box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
-      width: 50px;
-      height: 50px;
+      border: 5px solid #1a1a1a;
+      box-shadow: 5px 5px 0px rgba(0,0,0,0.6);
+      width: 60px;
+      height: 60px;
       font-family: 'Impact', sans-serif;
-      font-size: 24px;
+      font-size: 28px;
       display: flex;
       justify-content: center;
       align-items: center;
       cursor: pointer;
-      transition: transform 0.1s;
+      transition: transform 0.1s, box-shadow 0.1s;
     }
     .about-close:active {
-      transform: translate(4px, 4px);
-      box-shadow: 0px 0px 0px rgba(0,0,0,0.5);
+      transform: translate(5px, 5px);
+      box-shadow: 0px 0px 0px rgba(0,0,0,0.6);
     }
     .about-img {
-      width: 180px;
-      height: 180px;
-      background: #333;
-      border: 4px solid #ffffff;
+      width: 280px;
+      height: 280px;
+      background: #2a2a2a;
+      border: 6px solid #ffffff;
       object-fit: cover;
       flex-shrink: 0;
+      border-radius: 8px;
+      box-shadow: 8px 8px 0px rgba(0,0,0,0.5);
+    }
+    .about-content {
+      flex-grow: 1;
     }
     .about-content h1 {
       font-family: 'Impact', sans-serif;
-      font-size: 42px;
+      font-size: 56px;
       margin: 0 0 5px 0;
       letter-spacing: 2px;
       text-transform: uppercase;
+      color: #ffffff;
+      text-shadow: 4px 4px 0px #000;
     }
     .about-content h3 {
-      color: #cccccc;
-      margin: 0 0 20px 0;
-      font-size: 18px;
+      color: #a3a3a3;
+      margin: 0 0 25px 0;
+      font-size: 20px;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 2px;
+      font-weight: 700;
     }
-    .about-content p {
-      line-height: 1.6;
-      font-size: 16px;
-      margin-bottom: 15px;
-    }
-    .about-content ul {
-      padding-left: 20px;
-      margin-top: 10px;
-      line-height: 1.6;
+    .about-content p.bio {
+      line-height: 1.7;
+      font-size: 18px;
+      margin-bottom: 25px;
+      color: #d1d1d1;
     }
   `;
   document.head.appendChild(style);
@@ -645,17 +653,42 @@ async function start() {
   modalOverlay.innerHTML = `
     <div class="about-modal">
       <div class="about-close" id="about-close-btn">X</div>
-      <img src="/models/profile.jpg" alt="Profile" class="about-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzMiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIyNCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPlBob3RvPC90ZXh0Pjwvc3ZnPg=='" />
-      <div class="about-content">
-        <h1>Anirudh</h1>
-        <h3>Engineering Student & Full-Stack Dev</h3>
-        <p>Welcome to my interactive portfolio! I am passionate about building robust systems from the ground up.</p>
-        <p><strong>What I do:</strong></p>
-        <ul>
-          <li>Architecting scalable backends & managing Docker environments</li>
-          <li>Competing in intense software engineering hackathons</li>
-          <li>Experimenting with AI cinematic video generation</li>
-        </ul>
+      <img src="/models/profile.jpg" alt="Profile" class="about-img" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMyYTJhMmEiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIyNCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPjI4MHgyODA8L3RleHQ+PC9zdmc+'" />
+      <div class="about-content" style="flex-grow: 1; overflow-y: auto; padding-right: 15px;">
+        <h1 style="font-family: 'Impact', sans-serif; font-size: 56px; margin: 0 0 5px 0; letter-spacing: 2px; text-transform: uppercase; color: #ffffff; text-shadow: 4px 4px 0px #000;">Anirudh</h1>
+        <h3 style="color: #a3a3a3; margin: 0 0 25px 0; font-size: 20px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">[ YOUR AWESOME TAGLINE GOES HERE ]</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px;">
+          <!-- Column 1: About Me -->
+          <div>
+            <h4 style="color: #fff; font-family: 'Impact', sans-serif; letter-spacing: 1px; font-size: 22px; margin: 0 0 10px 0; text-transform: uppercase;">About Me</h4>
+            <p style="color: #d1d1d1; line-height: 1.7; font-size: 15px; margin: 0;">Welcome to my interactive portfolio. I am passionate about building robust systems from the ground up, directing custom AI-generated cinematic videos, and continuously expanding my technical boundaries.</p>
+          </div>
+          <!-- Column 2: Experience & Background -->
+          <div>
+            <h4 style="color: #fff; font-family: 'Impact', sans-serif; letter-spacing: 1px; font-size: 22px; margin: 0 0 10px 0; text-transform: uppercase;">Experience & Background</h4>
+            <p style="color: #d1d1d1; line-height: 1.7; font-size: 15px; margin: 0;">Engineering student actively participating in competitive software engineering events like HackToFuture. Experienced in architecting complex data flows, managing multi-container environments, and designing secure backend infrastructure.</p>
+          </div>
+          <!-- Column 3: Core Skills & Tools -->
+          <div>
+            <h4 style="color: #fff; font-family: 'Impact', sans-serif; letter-spacing: 1px; font-size: 22px; margin: 0 0 10px 0; text-transform: uppercase;">Core Skills & Tools</h4>
+            <ul style="color: #d1d1d1; line-height: 1.8; font-size: 15px; margin: 0; padding-left: 20px;">
+              <li>Python & Django</li>
+              <li>Docker & Containerization</li>
+              <li>PostgreSQL & TimescaleDB</li>
+              <li>Firebase Auth</li>
+              <li>System Architecture</li>
+            </ul>
+          </div>
+          <!-- Column 4: Interests & Hobbies -->
+          <div>
+            <h4 style="color: #fff; font-family: 'Impact', sans-serif; letter-spacing: 1px; font-size: 22px; margin: 0 0 10px 0; text-transform: uppercase;">Interests & Hobbies</h4>
+            <ul style="color: #d1d1d1; line-height: 1.8; font-size: 15px; margin: 0; padding-left: 20px;">
+              <li>AI Media Generation</li>
+              <li>[ Placeholder Hobby 1 ]</li>
+              <li>[ Placeholder Hobby 2 ]</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   `;

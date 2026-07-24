@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { setupAboutModal } from './AboutModal';
+import { setupControlsModal } from './ControlsModal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CAM_OFFSET        = new THREE.Vector3(5, 5, 5);  // closer camera for smaller scale
@@ -143,6 +144,8 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   dummySphere: THREE.Object3D | null;
   aboutStatue: THREE.Object3D | null;
   aboutLabel: CSS2DObject | null;
+  controllerBase: THREE.Object3D | null;
+  controllerLabel: CSS2DObject | null;
 }> {
   const gltf = await gltfLoader.loadAsync('/models/medieval_castle_with_village.glb');
   const terrainScene = gltf.scene;
@@ -206,6 +209,26 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     }
   });
 
+  // Find the controller_base interaction point and attach 3D label
+  let controllerBase: THREE.Object3D | null = null;
+  let controllerLabel: CSS2DObject | null = null;
+  
+  terrainScene.traverse((child) => {
+    if (!controllerBase && child.name.toLowerCase() === 'controller_base') {
+      controllerBase = child;
+      
+      const labelContainer = document.createElement('div');
+      labelContainer.className = 'bruno-label-container';
+      labelContainer.innerHTML = `<div class="bruno-label-inner">CONTROLS <div class="key-indicator">E</div></div>`;
+      
+      controllerLabel = new CSS2DObject(labelContainer);
+      controllerLabel.position.set(0, 2.5, 0);  // Adjust Y offset if it sits too high or low
+      controllerBase.add(controllerLabel);
+      
+      console.log('Attached 3D label to controller_base');
+    }
+  });
+
   // ── Extract geometry for Rapier trimesh collider ──────────────────────────
   // Collect all vertices and indices from every mesh in the terrain
   const allVertices: number[] = [];
@@ -265,7 +288,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel };
+  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel };
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -284,7 +307,7 @@ async function start() {
   characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
   // ── Load medieval castle & village terrain ────────────────────────────────
-  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel } = await loadMedievalTerrain(world);
+  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel } = await loadMedievalTerrain(world);
 
   // ── Get About Statue Position ──────────────────────────────────────────────
   const aboutStatuePos = new THREE.Vector3();
@@ -295,8 +318,18 @@ async function start() {
     console.warn('about-statue not found in GLB. Interaction will be disabled.');
   }
 
-  // ── Setup About Modal ──────────────────────────────────────────────────────
+  // ── Get Controller Base Position ───────────────────────────────────────────
+  const controllerPos = new THREE.Vector3();
+  if (controllerBase) {
+    controllerBase.getWorldPosition(controllerPos);
+    console.log('Found controller_base at:', controllerPos);
+  } else {
+    console.warn('controller_base not found in GLB. Interaction will be disabled.');
+  }
+
+  // ── Setup Modals ───────────────────────────────────────────────────────────
   const aboutModal = setupAboutModal();
+  const controlsModal = setupControlsModal();
 
   // ── Configure Sun Light from Dummy_Sphere ─────────────────────────────────
   if (dummySphere) {
@@ -530,14 +563,18 @@ async function start() {
 
   // ── Interaction State ──────────────────────────────────────────────────────
   let canInteractAbout = false;
+  let canInteractControls = false;
 
   // Handle E key interaction
   window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'e') {
       if (canInteractAbout && !aboutModal.isOpen) {
         aboutModal.open();
-      } else if (aboutModal.isOpen) {
-        aboutModal.close();
+      } else if (canInteractControls && !controlsModal.isOpen) {
+        controlsModal.open();
+      } else {
+        if (aboutModal.isOpen) aboutModal.close();
+        if (controlsModal.isOpen) controlsModal.close();
       }
     }
   });
@@ -640,6 +677,26 @@ async function start() {
         if (canInteractAbout) {
           aboutLabel.element.classList.remove('visible');
           canInteractAbout = false;
+        }
+      }
+    }
+
+    // ── Proximity Detection for Controller Base ────────────────────────────
+    if (controllerBase && controllerLabel) {
+      controllerBase.getWorldPosition(controllerPos);
+      
+      const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+      const dist = playerPos.distanceTo(controllerPos);
+      
+      if (dist < 6.0) {  // Slightly larger radius since the controller is giant
+        if (!canInteractControls) {
+          controllerLabel.element.classList.add('visible');
+          canInteractControls = true;
+        }
+      } else {
+        if (canInteractControls) {
+          controllerLabel.element.classList.remove('visible');
+          canInteractControls = false;
         }
       }
     }

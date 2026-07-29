@@ -56,16 +56,20 @@ export function setupControlsModal() {
       pointer-events: none;
     }
     .about-modal {
-      background: #1a1a1a;
-      color: #f0f0f0;
-      border: 6px solid #ffffff;
-      border-radius: 12px;
-      box-shadow: 15px 15px 0px rgba(0,0,0,0.9);
+      background-color: transparent !important;
+      background-image: url('/paper-bg.png');
+      background-size: 100% 100%;
+      background-position: center;
+      background-repeat: no-repeat;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      filter: drop-shadow(8px 12px 20px rgba(0, 0, 0, 0.6));
       width: 95%;
       max-width: 1050px;
       height: auto;
       max-height: 85vh;
-      padding: 40px;
+      padding: 60px 50px;
       position: relative;
       font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       display: flex;
@@ -78,33 +82,37 @@ export function setupControlsModal() {
       position: absolute;
       top: 20px;
       right: 20px;
-      background: #ffffff;
-      color: #1a1a1a;
-      border: 5px solid #1a1a1a;
-      box-shadow: 5px 5px 0px rgba(0,0,0,0.6);
-      width: 60px;
-      height: 60px;
+      background: transparent;
+      color: #2c1b18;
+      border: 3px solid #2c1b18;
+      box-shadow: none;
+      width: 50px;
+      height: 50px;
       font-family: 'Impact', sans-serif;
       font-size: 28px;
+      font-weight: bold;
       display: flex;
       justify-content: center;
       align-items: center;
       cursor: pointer;
-      transition: transform 0.1s, box-shadow 0.1s;
+      transition: transform 0.2s, background-color 0.2s;
+      border-radius: 50%;
+    }
+    .about-close:hover {
+      background: rgba(44, 27, 24, 0.1);
     }
     .about-close:active {
-      transform: translate(5px, 5px);
-      box-shadow: 0px 0px 0px rgba(0,0,0,0.6);
+      transform: scale(0.95);
     }
     .about-img {
       width: 280px;
       height: 280px;
-      background: #2a2a2a;
-      border: 6px solid #ffffff;
+      background: #f5f1e8;
+      border: 4px solid #2c1b18;
       object-fit: cover;
       flex-shrink: 0;
-      border-radius: 8px;
-      box-shadow: 8px 8px 0px rgba(0,0,0,0.5);
+      border-radius: 4px;
+      box-shadow: 3px 3px 8px rgba(0,0,0,0.3);
     }
     .about-content {
       flex-grow: 1;
@@ -115,11 +123,11 @@ export function setupControlsModal() {
       margin: 0 0 5px 0;
       letter-spacing: 2px;
       text-transform: uppercase;
-      color: #ffffff;
-      text-shadow: 4px 4px 0px #000;
+      color: #2c1b18;
+      text-shadow: none;
     }
     .about-content h3 {
-      color: #a3a3a3;
+      color: #5d4037;
       margin: 0 0 25px 0;
       font-size: 20px;
       text-transform: uppercase;
@@ -130,7 +138,7 @@ export function setupControlsModal() {
       line-height: 1.7;
       font-size: 18px;
       margin-bottom: 25px;
-      color: #d1d1d1;
+      color: #2c1b18;
     }
   `;
   document.head.appendChild(style);
@@ -143,16 +151,16 @@ export function setupControlsModal() {
     <div class="about-modal" style="max-width: 400px; width: 90%; flex-direction: column; text-align: center;">
       <div class="about-close" id="controls-close-btn">X</div>
       <div class="about-content" style="width: 100%;">
-        <h1 style="font-family: 'Impact', sans-serif; font-size: 56px; margin: 35px 0 5px 0; letter-spacing: 2px; text-transform: uppercase; color: #ffffff; text-shadow: 4px 4px 0px #000;">CONTROLS</h1>
-        <h3 style="color: #a3a3a3; margin: 0 0 25px 0; font-size: 16px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">How to navigate</h3>
-        <ul style="color: #d1d1d1; line-height: 2.2; font-size: 18px; margin: 0 auto; padding: 0; list-style: none; display: inline-block; text-align: left;">
-          <li><strong style="color: #fff; width: 30px; display: inline-block;">W</strong> - Move Forwards</li>
-          <li><strong style="color: #fff; width: 30px; display: inline-block;">A</strong> - Move Left</li>
-          <li><strong style="color: #fff; width: 30px; display: inline-block;">S</strong> - Move Backwards</li>
-          <li><strong style="color: #fff; width: 30px; display: inline-block;">D</strong> - Move Right</li>
-          <li style="margin-top: 15px;"><strong style="color: #fff;">Arrow Keys</strong> - Alternative Movement</li>
-          <li style="margin-top: 15px;"><strong style="color: #fff;">Mouse</strong> - Rotate Camera</li>
-          <li><strong style="color: #fff;">E</strong> - Interact with Objects</li>
+        <h1 style="font-family: 'Impact', sans-serif; font-size: 56px; margin: 35px 0 5px 0; letter-spacing: 2px; text-transform: uppercase; color: #2c1b18; text-shadow: none;">CONTROLS</h1>
+        <h3 style="color: #5d4037; margin: 0 0 25px 0; font-size: 16px; text-transform: uppercase; letter-spacing: 2px; font-weight: 700;">How to navigate</h3>
+        <ul style="color: #2c1b18; line-height: 2.2; font-size: 18px; margin: 0 auto; padding: 0; list-style: none; display: inline-block; text-align: left;">
+          <li><strong style="color: #2c1b18; width: 30px; display: inline-block;">W</strong> - Move Forwards</li>
+          <li><strong style="color: #2c1b18; width: 30px; display: inline-block;">A</strong> - Move Left</li>
+          <li><strong style="color: #2c1b18; width: 30px; display: inline-block;">S</strong> - Move Backwards</li>
+          <li><strong style="color: #2c1b18; width: 30px; display: inline-block;">D</strong> - Move Right</li>
+          <li style="margin-top: 15px;"><strong style="color: #2c1b18;">Arrow Keys</strong> - Alternative Movement</li>
+          <li style="margin-top: 15px;"><strong style="color: #2c1b18;">Mouse</strong> - Rotate Camera</li>
+          <li><strong style="color: #2c1b18;">E</strong> - Interact with Objects</li>
         </ul>
       </div>
     </div>

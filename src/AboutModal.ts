@@ -52,7 +52,7 @@ export function setupAboutModal() {
       justify-content: center;
       align-items: center;
       z-index: 2000;
-      pointer-events: none;
+      pointer-events: auto;
     }
   `;
   document.head.appendChild(style);
@@ -64,7 +64,8 @@ export function setupAboutModal() {
   
   // Create the modal element with new vertical portrait layout
   const aboutModal = document.createElement('div');
-  aboutModal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90vw; max-width: 480px; min-height: 70vh; background-color: transparent !important; background-image: url("/paper-bg.png"); background-size: 100% 100%; background-position: center; background-repeat: no-repeat; filter: drop-shadow(8px 12px 20px rgba(0, 0, 0, 0.7)); padding: 60px 40px 50px 40px; display: flex; flex-direction: column; align-items: center; z-index: 4000; border: none !important; border-radius: 0 !important; box-shadow: none !important; transition: opacity 0.3s ease; animation: unfurlScroll 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; perspective: 1000px;';
+  aboutModal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90vw; max-width: 480px; min-height: 70vh; background: transparent url("/paper-bg.png") no-repeat center center !important; background-size: 100% 100% !important; filter: drop-shadow(8px 12px 20px rgba(0, 0, 0, 0.7)); padding: 60px 40px 50px 40px; display: flex; flex-direction: column; align-items: center; z-index: 4000; border: none !important; border-radius: 0 !important; box-shadow: none !important; animation: unfurlScroll 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; perspective: 1000px; pointer-events: auto !important;';
+  aboutModal.id = 'about-modal';
   
   aboutModal.innerHTML = `
     <style>
@@ -82,7 +83,7 @@ export function setupAboutModal() {
       }
     </style>
     
-    <button id="close-about-btn" style="position: absolute; top: -10px; right: -10px; width: 45px; height: 45px; background-color: #2c1b18; color: #ebd8b7; border: 2px solid #5d4037; border-radius: 50%; font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 2px 4px 10px rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; font-family: 'Courier New', monospace; transition: all 0.2s ease;">X</button>
+    <button id="close-about-btn" style="position: absolute; top: 25px; right: 25px; width: 45px; height: 45px; background-color: #2c1b18; color: #ebd8b7; border: 2px solid #5d4037; border-radius: 50%; font-size: 20px; font-weight: bold; cursor: pointer !important; pointer-events: auto !important; z-index: 10001 !important; box-shadow: 2px 4px 10px rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; font-family: 'Courier New', monospace; transition: transform 0.2s ease;">X</button>
     
     <div style="width: 160px; height: 160px; border-radius: 50%; overflow: hidden; border: 3px solid #2c1b18; box-shadow: 4px 4px 0px rgba(44, 27, 24, 0.2); margin-bottom: 25px;">
       <img src="/models/profile.jpg" alt="Anirudh Rao B" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiNmNWYxZTgiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iIzJjMWIxOCIgZm9udC1zaXplPSIxOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPjE2MHgxNjA8L3RleHQ+PC9zdmc+'">
@@ -134,6 +135,18 @@ export function setupAboutModal() {
       close();
     });
   }
+
+  // ── Global Event Delegation for Close Button (Foolproof) ──────────────────
+  // This ensures clicks are always caught, even if innerHTML is updated
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    // Check if the clicked element or its parent is the close button
+    if (target && (target.id === 'close-about-btn' || target.closest('#close-about-btn'))) {
+      console.log('❌ Close button clicked!');
+      close();
+      e.stopPropagation();
+    }
+  });
 
   return {
     open,

@@ -614,7 +614,7 @@ async function start() {
 
   // ── Player Character ──────────────────────────────────────────────────────
   // Load 3D character model with embedded texture
-  const characterGltf = await gltfLoader.loadAsync('/models/character-j.glb');
+  const characterGltf = await gltfLoader.loadAsync('/models/character-male-f.glb');
   const characterModel = characterGltf.scene;
 
   // Apply crisp pixel filtering to embedded texture and enable shadows

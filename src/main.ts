@@ -613,40 +613,41 @@ async function start() {
   );
 
   // ── Player Character ──────────────────────────────────────────────────────
-  // Load 3D character model with embedded texture
+  // Load character texture (must be loaded before model for proper UV mapping)
+  const charTexture = new THREE.TextureLoader().load('/models/character_textures.png');
+  charTexture.flipY = false; // GLTF models require flipY = false
+  charTexture.colorSpace = THREE.SRGBColorSpace;
+  charTexture.magFilter = THREE.NearestFilter; // Crisp pixel-art rendering
+  charTexture.minFilter = THREE.NearestFilter;
+
+  // Load 3D character model
   const characterGltf = await gltfLoader.loadAsync('/models/character-male-f.glb');
   const characterModel = characterGltf.scene;
 
-  // Apply crisp pixel filtering to embedded texture and enable shadows
+  // Scale the character up (2.5x for proper visibility)
+  characterModel.scale.set(2.5, 2.5, 2.5);
+
+  // Apply texture and enable shadows
   characterModel.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
 
-      // Fix embedded texture filtering for pixel-art style
+      // Apply the colormap texture to fix missing materials
       if (mesh.material) {
         const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         materials.forEach((mat) => {
           if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
-            // Set white base color to avoid tinting
-            mat.color.setHex(0xffffff);
-            
-            // Apply NearestFilter to embedded texture for crisp pixels
-            if (mat.map) {
-              mat.map.magFilter = THREE.NearestFilter;
-              mat.map.minFilter = THREE.NearestFilter;
-            }
-            
+            // Apply the manually loaded texture
+            mat.map = charTexture;
+            mat.color.setHex(0xffffff); // White base color to avoid tinting
             mat.needsUpdate = true;
           }
         });
       }
     }
   });
-
-  // Scale character up (2x larger than previous 0.35 scale)
-  characterModel.scale.set(0.7, 0.7, 0.7);
 
   scene.add(characterModel);
 

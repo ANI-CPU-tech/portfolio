@@ -64,10 +64,25 @@ export function setupAboutModal() {
   
   // Create the modal element with new vertical portrait layout
   const aboutModal = document.createElement('div');
-  aboutModal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90vw; max-width: 480px; min-height: 70vh; background-color: transparent !important; background-image: url("/paper-bg.png"); background-size: 100% 100%; background-position: center; background-repeat: no-repeat; filter: drop-shadow(8px 12px 20px rgba(0, 0, 0, 0.7)); padding: 60px 40px 50px 40px; display: flex; flex-direction: column; align-items: center; z-index: 4000; border: none !important; border-radius: 0 !important; box-shadow: none !important; transition: opacity 0.3s ease;';
+  aboutModal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90vw; max-width: 480px; min-height: 70vh; background-color: transparent !important; background-image: url("/paper-bg.png"); background-size: 100% 100%; background-position: center; background-repeat: no-repeat; filter: drop-shadow(8px 12px 20px rgba(0, 0, 0, 0.7)); padding: 60px 40px 50px 40px; display: flex; flex-direction: column; align-items: center; z-index: 4000; border: none !important; border-radius: 0 !important; box-shadow: none !important; transition: opacity 0.3s ease; animation: unfurlScroll 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; perspective: 1000px;';
   
   aboutModal.innerHTML = `
-    <button id="close-about-btn" style="position: absolute; top: 25px; right: 35px; background: none; border: none; font-size: 24px; font-weight: bold; color: #2c1b18; cursor: pointer; font-family: 'Courier New', monospace; transition: transform 0.2s;">X</button>
+    <style>
+      @keyframes unfurlScroll {
+        0% {
+          clip-path: inset(50% 0 50% 0);
+          transform: translate(-50%, -50%) scale(0.8) rotateX(15deg);
+          opacity: 0;
+        }
+        100% {
+          clip-path: inset(0 0 0 0);
+          transform: translate(-50%, -50%) scale(1) rotateX(0deg);
+          opacity: 1;
+        }
+      }
+    </style>
+    
+    <button id="close-about-btn" style="position: absolute; top: -10px; right: -10px; width: 45px; height: 45px; background-color: #2c1b18; color: #ebd8b7; border: 2px solid #5d4037; border-radius: 50%; font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 2px 4px 10px rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; font-family: 'Courier New', monospace; transition: all 0.2s ease;">X</button>
     
     <div style="width: 160px; height: 160px; border-radius: 50%; overflow: hidden; border: 3px solid #2c1b18; box-shadow: 4px 4px 0px rgba(44, 27, 24, 0.2); margin-bottom: 25px;">
       <img src="/models/profile.jpg" alt="Anirudh Rao B" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiNmNWYxZTgiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iIzJjMWIxOCIgZm9udC1zaXplPSIxOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPjE2MHgxNjA8L3RleHQ+PC9zdmc+'">
@@ -86,29 +101,39 @@ export function setupAboutModal() {
   modalOverlay.appendChild(aboutModal);
   document.body.appendChild(modalOverlay);
   
-  // Setup close button interactions
-  const closeBtn = aboutModal.querySelector('#close-about-btn') as HTMLButtonElement;
-  if (closeBtn) {
-    closeBtn.addEventListener('mouseenter', () => closeBtn.style.transform = 'scale(1.2)');
-    closeBtn.addEventListener('mouseleave', () => closeBtn.style.transform = 'scale(1)');
-    closeBtn.addEventListener('click', () => {
-      modalOverlay.style.display = 'none';
-    });
-  }
-
   // ── Modal State and Controls ───────────────────────────────────────────────
   let isOpen = false;
-  const overlay = document.getElementById('about-modal-overlay');
 
   const open = () => {
-    if (overlay) overlay.style.display = 'flex';
+    if (modalOverlay) {
+      modalOverlay.style.display = 'flex';
+      // Retrigger animation by removing and re-adding it
+      aboutModal.style.animation = 'none';
+      setTimeout(() => {
+        aboutModal.style.animation = 'unfurlScroll 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards';
+      }, 10);
+    }
     isOpen = true;
   };
 
   const close = () => {
-    if (overlay) overlay.style.display = 'none';
+    if (modalOverlay) modalOverlay.style.display = 'none';
     isOpen = false;
   };
+  
+  // Setup close button interactions AFTER modal is added to DOM
+  const closeBtn = aboutModal.querySelector('#close-about-btn') as HTMLButtonElement;
+  if (closeBtn) {
+    closeBtn.addEventListener('mouseenter', () => {
+      closeBtn.style.transform = 'scale(1.15) rotate(90deg)';
+    });
+    closeBtn.addEventListener('mouseleave', () => {
+      closeBtn.style.transform = 'scale(1) rotate(0deg)';
+    });
+    closeBtn.addEventListener('click', () => {
+      close();
+    });
+  }
 
   return {
     open,

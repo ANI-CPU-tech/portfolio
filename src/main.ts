@@ -818,12 +818,15 @@ async function start() {
     if (isMoving) {
       // Calculate target angle based on movement direction
       const targetAngle = Math.atan2(moveVec.x, moveVec.z);
-      // Smoothly interpolate rotation
-      characterModel.rotation.y = THREE.MathUtils.lerp(
-        characterModel.rotation.y,
-        targetAngle,
-        0.15  // rotation lerp factor
+      
+      // Create a quaternion for the target rotation (rotate around Y-axis)
+      const targetRotation = new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        targetAngle
       );
+      
+      // Smoothly rotate using quaternion slerp (always takes shortest path)
+      characterModel.quaternion.slerp(targetRotation, 0.15);
     }
 
     // ── Gravity ────────────────────────────────────────────────────────────

@@ -64,7 +64,7 @@ export function setupControlsModal() {
   
   // Create the modal element with vertical portrait layout and unroll animation
   const controlsModal = document.createElement('div');
-  controlsModal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90vw; max-width: 480px; min-height: 70vh; background: transparent url("/paper-bg.png") no-repeat center center !important; background-size: 100% 100% !important; filter: drop-shadow(8px 12px 20px rgba(0, 0, 0, 0.7)); padding: 70px 50px; display: flex; flex-direction: column; align-items: center; z-index: 4000; border: none !important; border-radius: 0 !important; box-shadow: none !important; animation: unfurlScroll 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; perspective: 1000px; pointer-events: auto !important;';
+  controlsModal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90vw; max-width: 480px; min-height: 70vh; background: transparent url("/improved-bg.png") no-repeat center center !important; background-size: 100% 100% !important; filter: drop-shadow(8px 12px 20px rgba(0, 0, 0, 0.7)); padding: 70px 50px; display: flex; flex-direction: column; align-items: center; z-index: 4000; border: none !important; border-radius: 0 !important; box-shadow: none !important; animation: unfurlScroll 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; perspective: 1000px; pointer-events: auto !important;';
   controlsModal.id = 'controls-modal';
   
   controlsModal.innerHTML = `

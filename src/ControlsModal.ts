@@ -69,6 +69,8 @@ export function setupControlsModal() {
   
   controlsModal.innerHTML = `
     <style>
+      @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+      
       @keyframes unfurlScroll {
         0% { 
           clip-path: inset(50% 0 50% 0); 
@@ -97,31 +99,35 @@ export function setupControlsModal() {
       .keycap {
         background-color: #2c1b18; 
         color: #ebd8b7; 
-        padding: 6px 12px; 
+        padding: 8px 10px; 
         border: 2px solid #5d4037; 
         border-radius: 6px; 
-        font-family: 'Courier New', monospace; 
+        font-family: 'Press Start 2P', monospace !important; 
         font-weight: bold; 
-        font-size: 16px; 
+        font-size: 10px; 
         box-shadow: 2px 3px 0px rgba(0,0,0,0.3); 
         text-align: center; 
         min-width: 36px;
+        image-rendering: pixelated;
+        -webkit-font-smoothing: none;
       }
       .ctrl-desc {
-        font-family: 'Georgia', serif; 
-        font-size: 16px; 
+        font-family: 'Press Start 2P', monospace !important; 
+        font-size: 10px; 
         font-weight: 600; 
         color: #2c1b18; 
         text-transform: uppercase; 
         letter-spacing: 1px;
+        image-rendering: pixelated;
+        -webkit-font-smoothing: none;
       }
     </style>
     
-    <button id="close-controls-btn" style="position: absolute; top: 25px; right: 25px; width: 45px; height: 45px; background-color: #2c1b18; color: #ebd8b7; border: 2px solid #5d4037; border-radius: 50%; font-size: 20px; font-weight: bold; cursor: pointer !important; pointer-events: auto !important; z-index: 10001 !important; box-shadow: 2px 4px 10px rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; font-family: 'Courier New', monospace; transition: transform 0.2s ease;">X</button>
+    <button id="close-controls-btn" style="position: absolute; top: 25px; right: 25px; width: 45px; height: 45px; background-color: #2c1b18; color: #ebd8b7; border: 2px solid #5d4037; border-radius: 50%; font-size: 14px; font-weight: bold; cursor: pointer !important; pointer-events: auto !important; z-index: 10001 !important; box-shadow: 2px 4px 10px rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; font-family: 'Press Start 2P', monospace; transition: transform 0.2s ease; image-rendering: pixelated; -webkit-font-smoothing: none;">X</button>
     
-    <h1 style="font-family: 'Georgia', serif; font-size: 34px; font-weight: 900; color: #2c1b18; margin: 0 0 5px 0; text-transform: uppercase; letter-spacing: 3px; text-align: center;">Controls</h1>
+    <h1 style="font-family: 'Press Start 2P', monospace !important; font-size: 20px; font-weight: 900; color: #2c1b18; margin: 0 0 5px 0; text-transform: uppercase; letter-spacing: 3px; text-align: center; image-rendering: pixelated; -webkit-font-smoothing: none;">Controls</h1>
     
-    <h2 style="font-family: 'Courier New', monospace; font-size: 12px; font-weight: 700; color: #5d4037; margin: 0 0 40px 0; letter-spacing: 2px; text-transform: uppercase; text-align: center;">How to navigate</h2>
+    <h2 style="font-family: 'Press Start 2P', monospace !important; font-size: 9px; font-weight: 700; color: #5d4037; margin: 0 0 40px 0; letter-spacing: 2px; text-transform: uppercase; text-align: center; image-rendering: pixelated; -webkit-font-smoothing: none;">How to navigate</h2>
     
     <div style="width: 100%; padding: 0 10px;">
       <div class="ctrl-row">
@@ -136,14 +142,14 @@ export function setupControlsModal() {
       
       <div class="ctrl-row">
         <div class="ctrl-keys">
-          <span class="keycap" style="font-size: 12px; min-width: 80px;">ARROWS</span>
+          <span class="keycap" style="font-size: 8px; min-width: 80px;">ARROWS</span>
         </div>
         <span class="ctrl-desc">Alt Movement</span>
       </div>
       
       <div class="ctrl-row">
         <div class="ctrl-keys">
-          <span class="keycap" style="font-size: 12px; min-width: 80px;">MOUSE</span>
+          <span class="keycap" style="font-size: 8px; min-width: 80px;">MOUSE</span>
         </div>
         <span class="ctrl-desc">Look Around</span>
       </div>

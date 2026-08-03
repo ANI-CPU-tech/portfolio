@@ -154,6 +154,9 @@ function buildShadowSprite(): THREE.Sprite {
 // ─── GLTF loader (singleton) ──────────────────────────────────────────────────
 const gltfLoader = new GLTFLoader();
 
+// ─── Environment Animation Mixers ─────────────────────────────────────────────
+const environmentMixers: THREE.AnimationMixer[] = [];
+
 /**
  * Load the medieval castle terrain level with trimesh physics.
  * Returns the loaded scene and creates a single static trimesh collider for terrain traversal.
@@ -193,6 +196,25 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   });
 
   scene.add(terrainScene);
+
+  // ── Initialize Environment Animations ──────────────────────────────────────
+  if (gltf.animations && gltf.animations.length > 0) {
+    console.log('🎬 Found environment animations! Initializing...');
+    console.log(`   📊 Total clips: ${gltf.animations.length}`);
+    
+    const envMixer = new THREE.AnimationMixer(terrainScene);
+    
+    gltf.animations.forEach((clip) => {
+      console.log(`   ▶️  Playing: "${clip.name}" (${clip.duration.toFixed(2)}s)`);
+      const action = envMixer.clipAction(clip);
+      action.play();
+    });
+    
+    environmentMixers.push(envMixer);
+    console.log('✅ Environment animations initialized successfully!');
+  } else {
+    console.log('ℹ️  No environment animations found in GLB.');
+  }
 
   // Find the dummy cube spawn/scale reference using fuzzy search
   let dummyCube: THREE.Object3D | null = null;
@@ -785,6 +807,9 @@ async function start() {
     if (mixer) {
       mixer.update(delta);
     }
+
+    // Update environment animation mixers
+    environmentMixers.forEach((mixer) => mixer.update(delta));
 
     // Rotate skydome for moving clouds effect
     if (typeof skyDome !== 'undefined' && skyDome !== null) {

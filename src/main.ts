@@ -898,16 +898,26 @@ async function start() {
       
       const indicator = aboutLabel.element.querySelector('.interact-indicator') as HTMLElement;
       
-      if (distance < 5.0) {  // Interaction radius (slightly larger)
-        if (!canInteractAbout && indicator) {
-          indicator.classList.add('active');
-          canInteractAbout = true;
+      // Only show indicators after intro is complete
+      if (!isIntroActive && indicator) {
+        indicator.style.opacity = '1'; // Make base circle visible
+        
+        if (distance < 5.0) {  // Interaction radius
+          if (!canInteractAbout) {
+            indicator.classList.add('active');
+            canInteractAbout = true;
+          }
+        } else {
+          if (canInteractAbout) {
+            indicator.classList.remove('active');
+            canInteractAbout = false;
+          }
         }
-      } else {
-        if (canInteractAbout && indicator) {
-          indicator.classList.remove('active');
-          canInteractAbout = false;
-        }
+      } else if (indicator) {
+        // Keep hidden during intro
+        indicator.style.opacity = '0';
+        indicator.classList.remove('active');
+        canInteractAbout = false;
       }
     }
 
@@ -919,16 +929,26 @@ async function start() {
       
       const indicator = controllerLabel.element.querySelector('.interact-indicator') as HTMLElement;
       
-      if (dist < 6.0) {  // Tightened radius so it doesn't trigger at spawn
-        if (!canInteractControls && indicator) {
-          indicator.classList.add('active');
-          canInteractControls = true;
+      // Only show indicators after intro is complete
+      if (!isIntroActive && indicator) {
+        indicator.style.opacity = '1'; // Make base circle visible
+        
+        if (dist < 6.0) {  // Interaction radius
+          if (!canInteractControls) {
+            indicator.classList.add('active');
+            canInteractControls = true;
+          }
+        } else {
+          if (canInteractControls) {
+            indicator.classList.remove('active');
+            canInteractControls = false;
+          }
         }
-      } else {
-        if (canInteractControls && indicator) {
-          indicator.classList.remove('active');
-          canInteractControls = false;
-        }
+      } else if (indicator) {
+        // Keep hidden during intro
+        indicator.style.opacity = '0';
+        indicator.classList.remove('active');
+        canInteractControls = false;
       }
     }
 

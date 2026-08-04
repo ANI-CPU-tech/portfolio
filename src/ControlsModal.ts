@@ -27,6 +27,7 @@ export function setupControlsModal() {
       box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
       pointer-events: none;
       margin-top: -20px;
+      opacity: 0;
     }
     .interact-indicator.active {
       width: 140px;

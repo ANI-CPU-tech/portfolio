@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { setupAboutModal } from './AboutModal';
 import { setupControlsModal } from './ControlsModal';
+import { setupProjectsModal } from './ProjectsModal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const CAM_OFFSET        = new THREE.Vector3(5, 5, 5);  // closer camera for smaller scale
@@ -167,6 +168,8 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
   dummySphere: THREE.Object3D | null;
   aboutStatue: THREE.Object3D | null;
   aboutLabel: CSS2DObject | null;
+  projectForge: THREE.Object3D | null;
+  forgeLabel: CSS2DObject | null;
   controllerBase: THREE.Object3D | null;
   controllerLabel: CSS2DObject | null;
   controlsAnchor: THREE.Group | null;
@@ -250,6 +253,26 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
       aboutStatue.add(aboutLabel);
       
       console.log('Attached 3D label to about-statue');
+    }
+  });
+
+  // Find the project-forge interaction point and attach 3D label
+  let projectForge: THREE.Object3D | null = null;
+  let forgeLabel: CSS2DObject | null = null;
+  
+  terrainScene.traverse((child) => {
+    if (!projectForge && child.name.toLowerCase().includes('project-forge')) {
+      projectForge = child;
+      
+      const labelContainer = document.createElement('div');
+      labelContainer.className = 'bruno-label-container';
+      labelContainer.innerHTML = `<div class="interact-indicator"><span class="interact-text">PROJECT(S)</span></div>`;
+      
+      forgeLabel = new CSS2DObject(labelContainer);
+      forgeLabel.position.set(0, 3.5, 0); // Safe initial height above the forge
+      projectForge.add(forgeLabel);
+      
+      console.log('✅ Attached 3D label to project-forge');
     }
   });
 
@@ -353,7 +376,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     world.createCollider(trimeshCollider, terrainBody);
   }
 
-  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel, controlsAnchor, introCameraStartPos };
+  return { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, projectForge, forgeLabel, controllerBase, controllerLabel, controlsAnchor, introCameraStartPos };
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
@@ -372,7 +395,7 @@ async function start() {
   characterController.setMaxSlopeClimbAngle(45 * (Math.PI / 180)); // allows walking up hills to 45°
 
   // ── Load medieval castle & village terrain ────────────────────────────────
-  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, controllerBase, controllerLabel, controlsAnchor, introCameraStartPos } = await loadMedievalTerrain(world);
+  const { scene: terrainScene, dummyCube, dummySphere, aboutStatue, aboutLabel, projectForge, forgeLabel, controllerBase, controllerLabel, controlsAnchor, introCameraStartPos } = await loadMedievalTerrain(world);
 
   // ── Get About Statue Position ──────────────────────────────────────────────
   const aboutStatuePos = new THREE.Vector3();
@@ -395,6 +418,7 @@ async function start() {
   // ── Setup Modals ───────────────────────────────────────────────────────────
   const aboutModal = setupAboutModal();
   const controlsModal = setupControlsModal();
+  const projectsModal = setupProjectsModal();
 
   // ── Setup Intro UI Overlay ─────────────────────────────────────────────────
   const introUI = document.createElement('div');
@@ -758,6 +782,7 @@ async function start() {
   // ── Interaction State ──────────────────────────────────────────────────────
   let canInteractAbout = false;
   let canInteractControls = false;
+  let canInteractForge = false;
 
   // Handle E key interaction
   window.addEventListener('keydown', (e) => {
@@ -766,9 +791,12 @@ async function start() {
         aboutModal.open();
       } else if (canInteractControls && !controlsModal.isOpen) {
         controlsModal.open();
+      } else if (canInteractForge && !projectsModal.isOpen) {
+        projectsModal.open();
       } else {
         if (aboutModal.isOpen) aboutModal.close();
         if (controlsModal.isOpen) controlsModal.close();
+        if (projectsModal.isOpen) projectsModal.close();
       }
     }
   });
@@ -918,6 +946,37 @@ async function start() {
         indicator.style.opacity = '0';
         indicator.classList.remove('active');
         canInteractAbout = false;
+      }
+    }
+
+    // ── Proximity Detection for Project Forge ──────────────────────────────
+    if (projectForge && forgeLabel) {
+      const forgePos = new THREE.Vector3();
+      projectForge.getWorldPosition(forgePos);
+      
+      const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
+      const distance = playerPos.distanceTo(forgePos);
+      
+      const indicator = forgeLabel.element.querySelector('.interact-indicator') as HTMLElement;
+      
+      if (!isIntroActive && indicator) {
+        indicator.style.opacity = '1';
+        
+        if (distance < 6.0) {
+          if (!canInteractForge) {
+            indicator.classList.add('active');
+            canInteractForge = true;
+          }
+        } else {
+          if (canInteractForge) {
+            indicator.classList.remove('active');
+            canInteractForge = false;
+          }
+        }
+      } else if (indicator) {
+        indicator.style.opacity = '0';
+        indicator.classList.remove('active');
+        canInteractForge = false;
       }
     }
 

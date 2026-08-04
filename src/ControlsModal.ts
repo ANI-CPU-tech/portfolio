@@ -7,39 +7,45 @@ export function setupControlsModal() {
   // ── Inject Stylized CSS for 3D Label ───────────────────────────────────────
   const style = document.createElement('style');
   style.innerHTML = `
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    
     .bruno-label-container {
       /* Three.js controls this wrapper's transform. Do NOT put scales/rotations here. */
       pointer-events: none;
     }
-    .bruno-label-inner {
+    .interact-indicator {
+      width: 24px;
+      height: 24px;
+      border: 3px solid white;
+      background-color: #1a1a1a;
+      border-radius: 50px;
       display: flex;
       align-items: center;
-      gap: 10px;
-      background: #1a1a1a;
-      color: #ffffff;
-      padding: 8px 16px;
-      border-radius: 4px;
-      font-family: 'Impact', 'Arial Black', sans-serif;
-      font-size: 20px;
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      border: 3px solid #ffffff;
-      box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
-      transform: scale(0) translateY(20px);
+      justify-content: center;
+      overflow: hidden;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0px 4px 10px rgba(0,0,0,0.4);
+      pointer-events: none;
+      margin-top: -20px;
+    }
+    .interact-indicator.active {
+      width: 140px;
+      padding: 0 15px;
+    }
+    .interact-text {
+      color: white;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px;
+      white-space: nowrap;
       opacity: 0;
-      transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+      transform: scale(0.5);
+      transition: all 0.2s ease;
+      letter-spacing: 1px;
     }
-    .bruno-label-container.visible .bruno-label-inner {
-      transform: scale(1) translateY(0px);
+    .interact-indicator.active .interact-text {
       opacity: 1;
-    }
-    .key-indicator {
-      background: #ffffff;
-      color: #1a1a1a;
-      padding: 2px 8px;
-      border-radius: 2px;
-      font-weight: bold;
-      transform: rotate(5deg);
+      transform: scale(1);
+      transition-delay: 0.1s;
     }
     .controls-overlay {
       position: fixed;

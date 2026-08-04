@@ -240,10 +240,10 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
     if (!aboutStatue && (child.name.toLowerCase().includes('about-statue') || child.name.toLowerCase().includes('about_statue'))) {
       aboutStatue = child;
       
-      // Create stylized 3D label with nested structure to avoid transform conflicts
+      // Create stylized 3D label with expanding circle UI
       const labelContainer = document.createElement('div');
       labelContainer.className = 'bruno-label-container';
-      labelContainer.innerHTML = `<div class="bruno-label-inner">ABOUT ME <div class="key-indicator">E</div></div>`;
+      labelContainer.innerHTML = `<div class="interact-indicator"><span class="interact-text">ABOUT M(E)</span></div>`;
       
       aboutLabel = new CSS2DObject(labelContainer);
       aboutLabel.position.set(1.2, 0.8, 0);  // Lower and to the side of the statue
@@ -275,7 +275,7 @@ async function loadMedievalTerrain(world: RAPIER.World): Promise<{
       
       const labelContainer = document.createElement('div');
       labelContainer.className = 'bruno-label-container';
-      labelContainer.innerHTML = `<div class="bruno-label-inner">CONTROLS <div class="key-indicator">E</div></div>`;
+      labelContainer.innerHTML = `<div class="interact-indicator"><span class="interact-text">CONTROL(S)</span></div>`;
       
       controllerLabel = new CSS2DObject(labelContainer);
       controlsAnchor.add(controllerLabel);
@@ -896,14 +896,16 @@ async function start() {
       const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
       const distance = playerPos.distanceTo(aboutStatuePos);
       
+      const indicator = aboutLabel.element.querySelector('.interact-indicator') as HTMLElement;
+      
       if (distance < 5.0) {  // Interaction radius (slightly larger)
-        if (!canInteractAbout) {
-          aboutLabel.element.classList.add('visible');
+        if (!canInteractAbout && indicator) {
+          indicator.classList.add('active');
           canInteractAbout = true;
         }
       } else {
-        if (canInteractAbout) {
-          aboutLabel.element.classList.remove('visible');
+        if (canInteractAbout && indicator) {
+          indicator.classList.remove('active');
           canInteractAbout = false;
         }
       }
@@ -915,14 +917,16 @@ async function start() {
       const playerPos = new THREE.Vector3(pos.x, pos.y, pos.z);
       const dist = playerPos.distanceTo(controlsAnchor.position);
       
+      const indicator = controllerLabel.element.querySelector('.interact-indicator') as HTMLElement;
+      
       if (dist < 6.0) {  // Tightened radius so it doesn't trigger at spawn
-        if (!canInteractControls) {
-          controllerLabel.element.classList.add('visible');
+        if (!canInteractControls && indicator) {
+          indicator.classList.add('active');
           canInteractControls = true;
         }
       } else {
-        if (canInteractControls) {
-          controllerLabel.element.classList.remove('visible');
+        if (canInteractControls && indicator) {
+          indicator.classList.remove('active');
           canInteractControls = false;
         }
       }
